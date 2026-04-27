@@ -65,12 +65,10 @@ jobs:
       - name: Extract nginx tarball from image
         run: |
           TARBALL="nginx-${{ env.NGINX_VERSION }}-debian-amd64.tar.gz"
-          docker create --name nginx-export nginx-binary-export:latest
-          docker cp nginx-export:/nginx-export.tar.gz "./${TARBALL}"
-          docker rm nginx-export
+          docker run --rm -v "$PWD:/output" nginx-binary-export:latest \
+            cp /nginx-export.tar.gz "/output/${TARBALL}"
           echo "TARBALL=${TARBALL}" >> "$GITHUB_ENV"
           ls -lh "${TARBALL}"
-          # 打印内容清单
           tar -tzf "${TARBALL}" | head -40
 
       # 上传为 Actions Artifact（可在 Actions 页面直接下载，保留 7 天）

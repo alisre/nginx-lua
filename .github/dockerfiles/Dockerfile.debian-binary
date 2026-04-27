@@ -191,11 +191,7 @@ COPY tpl/??-*.sh             /usr/local/nginx/docker-entrypoint.d/
 RUN tar -czf /nginx-export.tar.gz \
         -C /usr/local \
         nginx \
-    && echo "=== Package contents ===" \
+    && echo "=== Package contents ==" \
     && tar -tzf /nginx-export.tar.gz | head -50 \
-    && echo "=== Package size ===" \
+    && echo "=== Package size ==" \
     && ls -lh /nginx-export.tar.gz
-
-# ── 最终镜像：只保留 tar.gz ──────────────────────────────────────────────────
-FROM scratch AS export
-COPY --from=builder /nginx-export.tar.gz /nginx-export.tar.gz
