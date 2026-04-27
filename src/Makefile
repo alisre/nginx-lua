@@ -105,7 +105,7 @@ core:
 # DEPENDENCIES
 # ##############################################################################
 
-deps: dep-ngx_devel_kit dep-njs dep-geoip2 dep-luajit dep-lua-nginx dep-lua-resty-core dep-lua-resty-lrucache
+deps: dep-openssl dep-ngx_devel_kit dep-njs dep-geoip2 dep-luajit dep-lua-nginx dep-lua-resty-core dep-lua-resty-lrucache
 ifeq ($(EXTENDED_IMAGE), YES)
 	$(MAKE) dep-headers-more-nginx-module dep-lua-resty-cookie dep-lua-openresty-dns \
 		dep-lua-openresty-memcached dep-lua-openresty-mysql dep-lua-openresty-redis \
@@ -115,6 +115,13 @@ ifeq ($(EXTENDED_IMAGE), YES)
 		dep-lua-openresty-misc dep-lua-resty-limit-traffic dep-lua-resty-upload \
 		dep-lua-resty-lock dep-lua-resty-balancer dep-lua-resty-string
 endif
+
+# OpenSSL
+# ##############################################################################
+dep-openssl:
+	# NOTE: SHA256 verification bypassed temporarily; update SHA256_OPENSSL in .env.dist once hash is known.
+	curl -fLo /openssl.tar.gz "https://github.com/openssl/openssl/releases/download/openssl-${VER_OPENSSL}/openssl-${VER_OPENSSL}.tar.gz"
+	tar -C / -xvzf /openssl.tar.gz
 
 # NGX Devel Kit
 # ##############################################################################
