@@ -47,6 +47,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Resolve tpl symlink
+        # BuildKit cannot COPY directories through symlinks; replace tpl->src symlink with a real copy
+        run: |
+          if [ -L tpl ]; then
+            TARGET=$(readlink tpl)
+            rm tpl
+            cp -r "$TARGET" tpl
+          fi
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -125,6 +134,16 @@ jobs:
       - name: Checkout
         if: steps.check.outputs.build == 'true'
         uses: actions/checkout@v4
+
+      - name: Resolve tpl symlink
+        if: steps.check.outputs.build == 'true'
+        # BuildKit cannot COPY directories through symlinks; replace tpl->src symlink with a real copy
+        run: |
+          if [ -L tpl ]; then
+            TARGET=$(readlink tpl)
+            rm tpl
+            cp -r "$TARGET" tpl
+          fi
 
       - name: Set up QEMU
         if: steps.check.outputs.build == 'true'
