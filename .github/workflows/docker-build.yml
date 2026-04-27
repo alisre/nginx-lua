@@ -15,14 +15,6 @@ on:
         description: 'Target distro (alpine/ubuntu/debian/almalinux/amazonlinux/fedora/all)'
         required: false
         default: 'alpine'
-      push:
-        description: 'Push to registry after build'
-        required: false
-        default: 'false'
-        type: choice
-        options:
-          - 'true'
-          - 'false'
 
 env:
   REGISTRY: docker.io
@@ -38,6 +30,9 @@ jobs:
   build-alpine:
     name: Build Alpine (${{ matrix.arch }})
     runs-on: ubuntu-latest
+    # Expose secret existence as env var; secrets context is NOT available in if expressions
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
     strategy:
       fail-fast: false
       matrix:
@@ -59,7 +54,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
-        if: github.event_name != 'pull_request' && secrets.DOCKERHUB_USERNAME != ''
+        if: github.event_name != 'pull_request' && env.DOCKERHUB_USERNAME != ''
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -81,7 +76,7 @@ jobs:
           context: .
           file: ./Dockerfile
           platforms: ${{ matrix.platform }}
-          push: ${{ github.event_name != 'pull_request' && secrets.DOCKERHUB_USERNAME != '' }}
+          push: ${{ github.event_name != 'pull_request' && env.DOCKERHUB_USERNAME != '' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
@@ -94,6 +89,8 @@ jobs:
   build-other-distros:
     name: Build ${{ matrix.distro }} (${{ matrix.arch }})
     runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
     strategy:
       fail-fast: false
       matrix:
@@ -103,16 +100,17 @@ jobs:
           - almalinux
           - amazonlinux
           - fedora
-        include_arch:
+        arch:
+          - amd64
+          - arm64
+        include:
           - arch: amd64
             platform: linux/amd64
             docker_arch: amd64
           - arch: arm64
             platform: linux/arm64
             docker_arch: arm64v8
-        exclude: []
     steps:
-      # matrix context is unavailable in job-level if; filter here instead
       - name: Check if this distro should be built
         id: check
         run: |
@@ -137,7 +135,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
-        if: steps.check.outputs.build == 'true' && github.event_name != 'pull_request' && secrets.DOCKERHUB_USERNAME != ''
+        if: steps.check.outputs.build == 'true' && github.event_name != 'pull_request' && env.DOCKERHUB_USERNAME != ''
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -165,7 +163,7 @@ jobs:
           context: .
           file: ./src/Dockerfile.${{ matrix.distro }}
           platforms: ${{ matrix.platform }}
-          push: ${{ github.event_name != 'pull_request' && secrets.DOCKERHUB_USERNAME != '' }}
+          push: ${{ github.event_name != 'pull_request' && env.DOCKERHUB_USERNAME != '' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
@@ -175,7 +173,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # 构建成功后汇总通知
   notify:
     name: Build Summary
     runs-on: ubuntu-latest
