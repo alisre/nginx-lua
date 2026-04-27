@@ -28,21 +28,10 @@ permissions:
 
 jobs:
   build-alpine:
-    name: Build Alpine (${{ matrix.arch }})
+    name: Build Alpine (amd64)
     runs-on: ubuntu-latest
-    # Expose secret existence as env var; secrets context is NOT available in if expressions
     env:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: amd64
-            platform: linux/amd64
-            docker_arch: amd64
-          - arch: arm64
-            platform: linux/arm64
-            docker_arch: arm64v8
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -55,9 +44,6 @@ jobs:
             rm tpl
             cp -r "$TARGET" tpl
           fi
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -75,28 +61,28 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=${{ env.NGINX_VERSION }}-alpine-${{ matrix.arch }}
-            type=raw,value=latest-alpine-${{ matrix.arch }},enable=${{ github.ref == 'refs/heads/main' }}
-            type=sha,prefix=${{ env.NGINX_VERSION }}-alpine-${{ matrix.arch }}-
+            type=raw,value=${{ env.NGINX_VERSION }}-alpine-amd64
+            type=raw,value=latest-alpine-amd64,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix=${{ env.NGINX_VERSION }}-alpine-amd64-
 
       - name: Build and push Alpine image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
-          platforms: ${{ matrix.platform }}
+          platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' && env.DOCKERHUB_USERNAME != '' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            ARCH=${{ matrix.docker_arch }}
+            ARCH=amd64
             VER_NGINX=${{ env.NGINX_VERSION }}
             VER_OPENSSL=${{ env.OPENSSL_VERSION }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   build-other-distros:
-    name: Build ${{ matrix.distro }} (${{ matrix.arch }})
+    name: Build ${{ matrix.distro }} (amd64)
     runs-on: ubuntu-latest
     env:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -109,16 +95,6 @@ jobs:
           - almalinux
           - amazonlinux
           - fedora
-        arch:
-          - amd64
-          - arm64
-        include:
-          - arch: amd64
-            platform: linux/amd64
-            docker_arch: amd64
-          - arch: arm64
-            platform: linux/arm64
-            docker_arch: arm64v8
     steps:
       - name: Check if this distro should be built
         id: check
@@ -137,17 +113,12 @@ jobs:
 
       - name: Resolve tpl symlink
         if: steps.check.outputs.build == 'true'
-        # BuildKit cannot COPY directories through symlinks; replace tpl->src symlink with a real copy
         run: |
           if [ -L tpl ]; then
             TARGET=$(readlink tpl)
             rm tpl
             cp -r "$TARGET" tpl
           fi
-
-      - name: Set up QEMU
-        if: steps.check.outputs.build == 'true'
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         if: steps.check.outputs.build == 'true'
@@ -172,8 +143,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=${{ env.NGINX_VERSION }}-${{ matrix.distro }}-${{ matrix.arch }}
-            type=sha,prefix=${{ env.NGINX_VERSION }}-${{ matrix.distro }}-${{ matrix.arch }}-
+            type=raw,value=${{ env.NGINX_VERSION }}-${{ matrix.distro }}-amd64
+            type=sha,prefix=${{ env.NGINX_VERSION }}-${{ matrix.distro }}-amd64-
 
       - name: Build and push ${{ matrix.distro }} image
         if: steps.check.outputs.build == 'true'
@@ -181,12 +152,12 @@ jobs:
         with:
           context: .
           file: ./src/Dockerfile.${{ matrix.distro }}
-          platforms: ${{ matrix.platform }}
+          platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' && env.DOCKERHUB_USERNAME != '' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            ARCH=${{ matrix.docker_arch }}
+            ARCH=amd64
             VER_NGINX=${{ env.NGINX_VERSION }}
             VER_OPENSSL=${{ env.OPENSSL_VERSION }}
           cache-from: type=gha
