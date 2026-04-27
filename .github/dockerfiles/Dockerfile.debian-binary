@@ -1,0 +1,199 @@
+# Dockerfile.debian-binary
+# 在 Debian amd64 上编译 nginx + Lua，安装到 /usr/local/nginx，输出为 tar.gz
+# 构建产物：/nginx-export.tar.gz
+
+ARG ARCH=amd64
+ARG DISTRO=debian
+ARG DISTRO_VER=bookworm
+
+FROM ${ARCH}/${DISTRO}:${DISTRO_VER} AS builder
+
+ARG ARCH=amd64
+ENV ARCH=${ARCH}
+
+# ── 版本变量 ──────────────────────────────────────────────────────────────────
+ARG VER_NGINX=1.30.0
+ARG VER_OPENSSL=4.0.0
+ARG VER_NGX_DEVEL_KIT=0.3.4
+ARG VER_NJS=0.9.6
+ARG VER_GEOIP=3.4
+ARG VER_LUAJIT=2.1-20260311
+ARG VER_LUA_NGINX_MODULE=0.10.29
+ARG VER_LUA_RESTY_CORE=0.1.32
+ARG VER_LUAROCKS=3.13.0
+ARG VER_OPENRESTY_HEADERS=0.39
+ARG VER_CLOUDFLARE_COOKIE=f418d77082eaef48331302e84330488fdc810ef4
+ARG VER_OPENRESTY_DNS=0.23
+ARG VER_LUA_RESTY_LRUCACHE=0.15
+ARG VER_OPENRESTY_MEMCACHED=0.17
+ARG VER_OPENRESTY_MYSQL=0.29
+ARG VER_OPENRESTY_REDIS=0.33
+ARG VER_OPENRESTY_SHELL=0.03
+ARG VER_OPENRESTY_SIGNAL=0.04
+ARG VER_OPENRESTY_HEALTHCHECK=0.08
+ARG VER_OPENRESTY_WEBSOCKET=0.13
+ARG VER_OPENRESTY_TABLEPOOL=0.03
+ARG VER_LUA_UPSTREAM=0.07
+ARG VER_PROMETHEUS=0.20240525
+ARG VER_MISC_NGINX=0.33
+ARG VER_OPENRESTY_STREAMLUA=c5b3410939478069b2af6552205173fb8b6a43fd
+ARG VER_OPENRESTY_LIMITTRAFFIC=0.09
+ARG VER_OPENRESTY_UPLOAD=0.11
+ARG VER_OPENRESTY_LOCK=0.09
+ARG VER_OPENRESTY_BALANCER=0.05
+ARG VER_OPENRESTY_STRING=0.16
+
+ENV VER_NGINX=${VER_NGINX} \
+    VER_OPENSSL=${VER_OPENSSL} \
+    VER_NGX_DEVEL_KIT=${VER_NGX_DEVEL_KIT} \
+    VER_NJS=${VER_NJS} \
+    VER_GEOIP=${VER_GEOIP} \
+    VER_LUAJIT=${VER_LUAJIT} \
+    VER_LUA_NGINX_MODULE=${VER_LUA_NGINX_MODULE} \
+    VER_LUA_RESTY_CORE=${VER_LUA_RESTY_CORE} \
+    VER_LUAROCKS=${VER_LUAROCKS} \
+    VER_OPENRESTY_HEADERS=${VER_OPENRESTY_HEADERS} \
+    VER_CLOUDFLARE_COOKIE=${VER_CLOUDFLARE_COOKIE} \
+    VER_OPENRESTY_DNS=${VER_OPENRESTY_DNS} \
+    VER_LUA_RESTY_LRUCACHE=${VER_LUA_RESTY_LRUCACHE} \
+    VER_OPENRESTY_MEMCACHED=${VER_OPENRESTY_MEMCACHED} \
+    VER_OPENRESTY_MYSQL=${VER_OPENRESTY_MYSQL} \
+    VER_OPENRESTY_REDIS=${VER_OPENRESTY_REDIS} \
+    VER_OPENRESTY_SHELL=${VER_OPENRESTY_SHELL} \
+    VER_OPENRESTY_SIGNAL=${VER_OPENRESTY_SIGNAL} \
+    VER_OPENRESTY_HEALTHCHECK=${VER_OPENRESTY_HEALTHCHECK} \
+    VER_OPENRESTY_WEBSOCKET=${VER_OPENRESTY_WEBSOCKET} \
+    VER_OPENRESTY_TABLEPOOL=${VER_OPENRESTY_TABLEPOOL} \
+    VER_LUA_UPSTREAM=${VER_LUA_UPSTREAM} \
+    VER_PROMETHEUS=${VER_PROMETHEUS} \
+    VER_MISC_NGINX=${VER_MISC_NGINX} \
+    VER_OPENRESTY_STREAMLUA=${VER_OPENRESTY_STREAMLUA} \
+    VER_OPENRESTY_LIMITTRAFFIC=${VER_OPENRESTY_LIMITTRAFFIC} \
+    VER_OPENRESTY_UPLOAD=${VER_OPENRESTY_UPLOAD} \
+    VER_OPENRESTY_LOCK=${VER_OPENRESTY_LOCK} \
+    VER_OPENRESTY_BALANCER=${VER_OPENRESTY_BALANCER} \
+    VER_OPENRESTY_STRING=${VER_OPENRESTY_STRING} \
+    LUAJIT_LIB=/usr/local/lib \
+    LUAJIT_INC=/usr/local/include/luajit-2.1 \
+    LD_LIBRARY_PATH=/usr/local/lib \
+    LUA_LIB_DIR=/usr/local/share/lua/5.1
+
+# ── 编译器与构建标志 ────────────────────────────────────────────────────────────
+ARG NGX_CFLAGS="-g -O2 -fstack-protector-strong -Wformat -Werror=format-security -Wp,-D_FORTIFY_SOURCE=2 -fPIC"
+ARG NGX_LDOPT="-Wl,-rpath,/usr/local/lib -Wl,-z,relro -Wl,-z,now -Wl,--as-needed"
+ENV NGX_CFLAGS=${NGX_CFLAGS} NGX_LDOPT=${NGX_LDOPT}
+
+# ── nginx configure：安装路径改为 /usr/local/nginx ───────────────────────────
+ARG NGINX_BUILD_CONFIG="\
+            --prefix=/usr/local/nginx \
+            --sbin-path=/usr/local/nginx/sbin/nginx \
+            --modules-path=/usr/local/nginx/modules \
+            --conf-path=/usr/local/nginx/conf/nginx.conf \
+            --error-log-path=/usr/local/nginx/logs/error.log \
+            --http-log-path=/usr/local/nginx/logs/access.log \
+            --pid-path=/usr/local/nginx/logs/nginx.pid \
+            --lock-path=/usr/local/nginx/logs/nginx.lock \
+            --http-client-body-temp-path=/usr/local/nginx/tmp/client_temp \
+            --http-proxy-temp-path=/usr/local/nginx/tmp/proxy_temp \
+            --http-fastcgi-temp-path=/usr/local/nginx/tmp/fastcgi_temp \
+            --http-uwsgi-temp-path=/usr/local/nginx/tmp/uwsgi_temp \
+            --http-scgi-temp-path=/usr/local/nginx/tmp/scgi_temp \
+            --user=nginx \
+            --group=nginx \
+            --with-compat \
+            --with-file-aio \
+            --with-threads \
+            --with-http_addition_module \
+            --with-http_auth_request_module \
+            --with-http_dav_module \
+            --with-http_flv_module \
+            --with-http_gunzip_module \
+            --with-http_gzip_static_module \
+            --with-http_mp4_module \
+            --with-http_random_index_module \
+            --with-http_realip_module \
+            --with-http_secure_link_module \
+            --with-http_slice_module \
+            --with-http_ssl_module \
+            --with-http_stub_status_module \
+            --with-http_sub_module \
+            --with-http_v2_module \
+            --with-http_v3_module \
+            --with-mail \
+            --with-mail_ssl_module \
+            --with-stream \
+            --with-stream_realip_module \
+            --with-stream_ssl_module \
+            --with-stream_ssl_preread_module \
+            --with-openssl=/openssl-${VER_OPENSSL} \
+            --add-module=/headers-more-nginx-module-${VER_OPENRESTY_HEADERS} \
+            --add-module=/lua-nginx-module-${VER_LUA_NGINX_MODULE} \
+            --add-module=/lua-upstream-nginx-module-${VER_LUA_UPSTREAM} \
+            --add-module=/ngx_devel_kit-${VER_NGX_DEVEL_KIT} \
+            --add-module=/ngx_http_geoip2_module-${VER_GEOIP} \
+            --add-module=/njs-${VER_NJS}/nginx \
+            --add-module=/set-misc-nginx-module-${VER_MISC_NGINX} \
+            --add-module=/stream-lua-nginx-module-${VER_OPENRESTY_STREAMLUA} \
+"
+ENV NGINX_BUILD_CONFIG=${NGINX_BUILD_CONFIG}
+
+# ── 安装 Debian 构建依赖 ────────────────────────────────────────────────────
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        curl \
+        git \
+        libmaxminddb-dev \
+        libpcre3-dev \
+        libssl-dev \
+        libxml2-dev \
+        libxslt1-dev \
+        libz-dev \
+        make \
+        patch \
+        perl \
+        tar \
+        zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── 复制 Makefile 和 env（tpl symlink 已在 workflow 中解析为真实目录）──────
+COPY tpl/Makefile Makefile
+COPY tpl/.env.dist .env.dist
+COPY tpl/patches patches
+
+# ── 编译：deps → core → luarocks ────────────────────────────────────────────
+RUN make deps \
+    && make core \
+    && make luarocks
+
+# ── 创建目录结构并补充运行时所需文件 ────────────────────────────────────────
+RUN mkdir -p \
+        /usr/local/nginx/tmp \
+        /usr/local/nginx/logs \
+        /usr/local/nginx/conf/conf.d \
+    # 复制 lua 共享库和 luajit
+    && cp -r /usr/local/lib/lua          /usr/local/nginx/lib/lua        2>/dev/null || true \
+    && cp -r /usr/local/share/lua        /usr/local/nginx/share/lua      2>/dev/null || true \
+    && cp    /usr/local/lib/libluajit*   /usr/local/nginx/lib/           2>/dev/null || true \
+    && cp    /usr/local/bin/luajit*      /usr/local/nginx/bin/           2>/dev/null || true \
+    # 复制 nginx 配置、脚本和 license
+    && true
+
+COPY tpl/nginx.conf          /usr/local/nginx/conf/nginx.conf
+COPY tpl/default.conf        /usr/local/nginx/conf/conf.d/default.conf
+COPY tpl/licenses            /usr/local/nginx/licenses
+COPY tpl/support.sh          /usr/local/nginx/bin/support.sh
+COPY tpl/docker-entrypoint.sh /usr/local/nginx/bin/docker-entrypoint.sh
+COPY tpl/??-*.sh             /usr/local/nginx/docker-entrypoint.d/
+
+# ── 打包 /usr/local/nginx 为 tar.gz ─────────────────────────────────────────
+RUN tar -czf /nginx-export.tar.gz \
+        -C /usr/local \
+        nginx \
+    && echo "=== Package contents ===" \
+    && tar -tzf /nginx-export.tar.gz | head -50 \
+    && echo "=== Package size ===" \
+    && ls -lh /nginx-export.tar.gz
+
+# ── 最终镜像：只保留 tar.gz ──────────────────────────────────────────────────
+FROM scratch AS export
+COPY --from=builder /nginx-export.tar.gz /nginx-export.tar.gz
