@@ -140,6 +140,7 @@ ENV NGINX_BUILD_CONFIG=${NGINX_BUILD_CONFIG}
 # ── 安装 Debian 构建依赖 ────────────────────────────────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
+        ca-certificates \
         curl \
         git \
         libmaxminddb-dev \
