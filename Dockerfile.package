@@ -5,6 +5,7 @@
 #       |_____|
 #
 # Dockerfile.package — Build self-contained nginx+Lua binary tar.gz (Linux/glibc)
+# Feature-parity with nginx/1.30.2/alpine/3.23.4/Dockerfile
 #
 # Build:
 #   docker buildx build -f Dockerfile.package --output type=local,dest=dist/ .
@@ -14,35 +15,72 @@
 #   /usr/local/nginx/install.sh          # create nginx user (UID 1001)
 #   /usr/local/nginx/sbin/nginx          # start
 
+# ── versions (aligned with nginx/1.30.2/alpine/3.23.4/Dockerfile) ────────────
 ARG NGINX_VER=1.30.2
 ARG VER_LUAJIT=2.1-20260415
 ARG VER_NDK=0.3.4
+ARG VER_NJS=0.9.9
+ARG VER_GEOIP=3.4
 ARG VER_LUA_NGINX=0.10.29
-ARG VER_RESTY_CORE=0.1.32
-ARG VER_RESTY_LRUCACHE=0.15
+ARG VER_LUA_RESTY_CORE=0.1.32
+ARG VER_LUAROCKS=3.13.0
 ARG VER_HEADERS_MORE=0.39
+ARG VER_CLOUDFLARE_COOKIE=f418d77082eaef48331302e84330488fdc810ef4
+ARG VER_OPENRESTY_DNS=0.23
+ARG VER_LUA_RESTY_LRUCACHE=0.15
+ARG VER_OPENRESTY_MEMCACHED=0.17
+ARG VER_OPENRESTY_MYSQL=0.30
+ARG VER_OPENRESTY_REDIS=0.33
+ARG VER_OPENRESTY_SHELL=0.03
+ARG VER_OPENRESTY_SIGNAL=0.04
+ARG VER_OPENRESTY_HEALTHCHECK=0.09
+ARG VER_OPENRESTY_WEBSOCKET=0.13
+ARG VER_OPENRESTY_TABLEPOOL=0.03
+ARG VER_LUA_UPSTREAM=0.08
+ARG VER_PROMETHEUS=0.20240525
+ARG VER_MISC_NGINX=0.33
+ARG VER_OPENRESTY_STREAMLUA=86cf76e3b62a5dea50813b3a00ff87b628c41aa4
+ARG VER_OPENRESTY_LIMITTRAFFIC=0.09
+ARG VER_OPENRESTY_UPLOAD=0.11
+ARG VER_OPENRESTY_LOCK=0.09
+ARG VER_OPENRESTY_BALANCER=0.05
+ARG VER_OPENRESTY_STRING=0.17
 ARG NGINX_UID=1001
 
 ###############################################################################
-# Stage 1 – builder: compile nginx + LuaJIT + modules
+# Stage 1 – builder: compile nginx + LuaJIT + all modules + Lua libraries
 ###############################################################################
 FROM debian:bookworm AS builder
 
-ARG NGINX_VER VER_LUAJIT VER_NDK VER_LUA_NGINX VER_RESTY_CORE VER_RESTY_LRUCACHE VER_HEADERS_MORE
+ARG NGINX_VER VER_LUAJIT VER_NDK VER_NJS VER_GEOIP \
+    VER_LUA_NGINX VER_LUA_RESTY_CORE VER_LUAROCKS \
+    VER_HEADERS_MORE VER_CLOUDFLARE_COOKIE VER_OPENRESTY_DNS \
+    VER_LUA_RESTY_LRUCACHE VER_OPENRESTY_MEMCACHED VER_OPENRESTY_MYSQL \
+    VER_OPENRESTY_REDIS VER_OPENRESTY_SHELL VER_OPENRESTY_SIGNAL \
+    VER_OPENRESTY_HEALTHCHECK VER_OPENRESTY_WEBSOCKET VER_OPENRESTY_TABLEPOOL \
+    VER_LUA_UPSTREAM VER_PROMETHEUS VER_MISC_NGINX VER_OPENRESTY_STREAMLUA \
+    VER_OPENRESTY_LIMITTRAFFIC VER_OPENRESTY_UPLOAD VER_OPENRESTY_LOCK \
+    VER_OPENRESTY_BALANCER VER_OPENRESTY_STRING
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         ca-certificates \
         curl \
+        git \
         libmaxminddb-dev \
         libpcre3-dev \
         libssl-dev \
         libxml2-dev \
         libxslt1-dev \
+        patch \
+        unzip \
+        wget \
         zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
+
+ENV LUA_LIB_DIR=/usr/local/nginx/lua/lib
 
 # ── LuaJIT ───────────────────────────────────────────────────────────────────
 RUN curl -fsSL "https://github.com/openresty/luajit2/archive/v${VER_LUAJIT}.tar.gz" \
@@ -51,23 +89,42 @@ RUN curl -fsSL "https://github.com/openresty/luajit2/archive/v${VER_LUAJIT}.tar.
     && make -j"$(nproc)" \
     && make install PREFIX=/usr/local
 
-ENV LUAJIT_LIB=/usr/local/lib
-ENV LUAJIT_INC=/usr/local/include/luajit-2.1
-ENV LD_LIBRARY_PATH=/usr/local/lib
+ENV LUAJIT_LIB=/usr/local/lib \
+    LUAJIT_INC=/usr/local/include/luajit-2.1 \
+    LD_LIBRARY_PATH=/usr/local/lib
 
-# ── Module sources ────────────────────────────────────────────────────────────
+# ── nginx module sources ──────────────────────────────────────────────────────
 RUN curl -fsSL "https://github.com/vision5/ngx_devel_kit/archive/v${VER_NDK}.tar.gz" \
+      | tar -xz \
+    && curl -fsSL "https://github.com/nginx/njs/archive/${VER_NJS}.tar.gz" \
+      | tar -xz \
+    && curl -fsSL "https://github.com/leev/ngx_http_geoip2_module/archive/${VER_GEOIP}.tar.gz" \
       | tar -xz \
     && curl -fsSL "https://github.com/openresty/lua-nginx-module/archive/v${VER_LUA_NGINX}.tar.gz" \
       | tar -xz \
+    && curl -fsSL "https://github.com/openresty/lua-upstream-nginx-module/archive/v${VER_LUA_UPSTREAM}.tar.gz" \
+      | tar -xz \
     && curl -fsSL "https://github.com/openresty/headers-more-nginx-module/archive/v${VER_HEADERS_MORE}.tar.gz" \
+      | tar -xz \
+    && curl -fsSL "https://github.com/openresty/set-misc-nginx-module/archive/v${VER_MISC_NGINX}.tar.gz" \
+      | tar -xz \
+    && curl -fsSL "https://github.com/openresty/stream-lua-nginx-module/archive/${VER_OPENRESTY_STREAMLUA}.tar.gz" \
       | tar -xz
 
-# ── nginx ─────────────────────────────────────────────────────────────────────
-#   --with-ld-opt rpath embeds /usr/local/nginx/lib as runtime lib search path
-RUN curl -fsSL "https://nginx.org/download/nginx-${NGINX_VER}.tar.gz" \
-      | tar -xz \
-    && cd "nginx-${NGINX_VER}" \
+# ── OpenResty patches (same as Docker image build) ────────────────────────────
+RUN curl -fsSL "https://nginx.org/download/nginx-${NGINX_VER}.tar.gz" | tar -xz \
+    && git clone --depth 1 https://github.com/openresty/openresty.git \
+    && PATCH_VER="${NGINX_VER}" \
+    && if [ -z "$(ls -1 openresty/patches/nginx/${NGINX_VER}/ 2>/dev/null)" ]; then \
+         PATCH_VER=$(ls -1d openresty/patches/nginx/*/ 2>/dev/null | xargs -I{} basename {} | sort -V | tail -1); \
+         echo "No patches for ${NGINX_VER}, falling back to: ${PATCH_VER}"; \
+       fi \
+    && for f in openresty/patches/nginx/${PATCH_VER}/nginx-${PATCH_VER}-*.patch; do \
+         [ -f "$f" ] && patch -d "nginx-${NGINX_VER}" -p1 < "$f" && echo "Applied: $f"; \
+       done || true
+
+# ── Build nginx with all modules ──────────────────────────────────────────────
+RUN cd "nginx-${NGINX_VER}" \
     && ./configure \
         --prefix=/usr/local/nginx \
         --sbin-path=/usr/local/nginx/sbin/nginx \
@@ -101,6 +158,7 @@ RUN curl -fsSL "https://nginx.org/download/nginx-${NGINX_VER}.tar.gz" \
         --with-http_stub_status_module \
         --with-http_sub_module \
         --with-http_v2_module \
+        --with-http_v3_module \
         --with-mail \
         --with-mail_ssl_module \
         --with-stream \
@@ -108,24 +166,87 @@ RUN curl -fsSL "https://nginx.org/download/nginx-${NGINX_VER}.tar.gz" \
         --with-stream_ssl_module \
         --with-stream_ssl_preread_module \
         --add-module="/build/ngx_devel_kit-${VER_NDK}" \
-        --add-module="/build/lua-nginx-module-${VER_LUA_NGINX}" \
         --add-module="/build/headers-more-nginx-module-${VER_HEADERS_MORE}" \
-        --with-cc-opt="-O2 -fstack-protector-strong -I${LUAJIT_INC}" \
-        --with-ld-opt="-L${LUAJIT_LIB} -Wl,-rpath,/usr/local/nginx/lib -Wl,-z,relro -Wl,-z,now" \
+        --add-module="/build/lua-nginx-module-${VER_LUA_NGINX}" \
+        --add-module="/build/lua-upstream-nginx-module-${VER_LUA_UPSTREAM}" \
+        --add-module="/build/ngx_http_geoip2_module-${VER_GEOIP}" \
+        --add-module="/build/njs-${VER_NJS}/nginx" \
+        --add-module="/build/set-misc-nginx-module-${VER_MISC_NGINX}" \
+        --add-module="/build/stream-lua-nginx-module-${VER_OPENRESTY_STREAMLUA}" \
+        --with-cc-opt="-O2 -fstack-protector-strong -Wformat -Werror=format-security -Wp,-D_FORTIFY_SOURCE=2 -fPIC -I${LUAJIT_INC}" \
+        --with-ld-opt="-L${LUAJIT_LIB} -Wl,-rpath,/usr/local/nginx/lib -Wl,-z,relro -Wl,-z,now -Wl,--as-needed" \
     && make -j"$(nproc)" \
+    && make install \
+    && ln -sf /usr/local/bin/luajit /usr/local/nginx/sbin/lua
+
+# ── Lua libraries ─────────────────────────────────────────────────────────────
+RUN mkdir -p "${LUA_LIB_DIR}" \
+    # lua-resty-lrucache (required by resty-core)
+    && curl -fsSL "https://github.com/openresty/lua-resty-lrucache/archive/v${VER_LUA_RESTY_LRUCACHE}.tar.gz" | tar -xz \
+    && make -C "lua-resty-lrucache-${VER_LUA_RESTY_LRUCACHE}" install LUA_LIB_DIR="${LUA_LIB_DIR}" \
+    # lua-resty-core (required by lua-nginx-module)
+    && curl -fsSL "https://github.com/openresty/lua-resty-core/archive/v${VER_LUA_RESTY_CORE}.tar.gz" | tar -xz \
+    && make -C "lua-resty-core-${VER_LUA_RESTY_CORE}" install LUA_LIB_DIR="${LUA_LIB_DIR}" \
+    # lua-resty-redis
+    && curl -fsSL "https://github.com/openresty/lua-resty-redis/archive/v${VER_OPENRESTY_REDIS}.tar.gz" | tar -xz \
+    && make -C "lua-resty-redis-${VER_OPENRESTY_REDIS}" install LUA_LIB_DIR="${LUA_LIB_DIR}" \
+    # lua-resty-mysql
+    && curl -fsSL "https://github.com/openresty/lua-resty-mysql/archive/v${VER_OPENRESTY_MYSQL}.tar.gz" | tar -xz \
+    && make -C "lua-resty-mysql-${VER_OPENRESTY_MYSQL}" install LUA_LIB_DIR="${LUA_LIB_DIR}" \
+    # lua-resty-memcached
+    && curl -fsSL "https://github.com/openresty/lua-resty-memcached/archive/v${VER_OPENRESTY_MEMCACHED}.tar.gz" | tar -xz \
+    && make -C "lua-resty-memcached-${VER_OPENRESTY_MEMCACHED}" install LUA_LIB_DIR="${LUA_LIB_DIR}" \
+    # lua-resty-dns
+    && curl -fsSL "https://github.com/openresty/lua-resty-dns/archive/v${VER_OPENRESTY_DNS}.tar.gz" | tar -xz \
+    && make -C "lua-resty-dns-${VER_OPENRESTY_DNS}" install LUA_LIB_DIR="${LUA_LIB_DIR}" \
+    # lua-resty-websocket
+    && curl -fsSL "https://github.com/openresty/lua-resty-websocket/archive/v${VER_OPENRESTY_WEBSOCKET}.tar.gz" | tar -xz \
+    && make -C "lua-resty-websocket-${VER_OPENRESTY_WEBSOCKET}" install LUA_LIB_DIR="${LUA_LIB_DIR}" \
+    # lua-resty-upstream-healthcheck
+    && curl -fsSL "https://github.com/openresty/lua-resty-upstream-healthcheck/archive/v${VER_OPENRESTY_HEALTHCHECK}.tar.gz" | tar -xz \
+    && make -C "lua-resty-upstream-healthcheck-${VER_OPENRESTY_HEALTHCHECK}" install LUA_LIB_DIR="${LUA_LIB_DIR}" \
+    # lua-resty-limit-traffic
+    && curl -fsSL "https://github.com/openresty/lua-resty-limit-traffic/archive/v${VER_OPENRESTY_LIMITTRAFFIC}.tar.gz" | tar -xz \
+    && make -C "lua-resty-limit-traffic-${VER_OPENRESTY_LIMITTRAFFIC}" install LUA_LIB_DIR="${LUA_LIB_DIR}" \
+    # lua-resty-lock
+    && curl -fsSL "https://github.com/openresty/lua-resty-lock/archive/v${VER_OPENRESTY_LOCK}.tar.gz" | tar -xz \
+    && make -C "lua-resty-lock-${VER_OPENRESTY_LOCK}" install LUA_LIB_DIR="${LUA_LIB_DIR}" \
+    # lua-resty-upload
+    && curl -fsSL "https://github.com/openresty/lua-resty-upload/archive/v${VER_OPENRESTY_UPLOAD}.tar.gz" | tar -xz \
+    && make -C "lua-resty-upload-${VER_OPENRESTY_UPLOAD}" install LUA_LIB_DIR="${LUA_LIB_DIR}" \
+    # lua-resty-balancer
+    && curl -fsSL "https://github.com/openresty/lua-resty-balancer/archive/v${VER_OPENRESTY_BALANCER}.tar.gz" | tar -xz \
+    && make -C "lua-resty-balancer-${VER_OPENRESTY_BALANCER}" install LUA_LIB_DIR="${LUA_LIB_DIR}" \
+    # lua-resty-string
+    && curl -fsSL "https://github.com/openresty/lua-resty-string/archive/v${VER_OPENRESTY_STRING}.tar.gz" | tar -xz \
+    && make -C "lua-resty-string-${VER_OPENRESTY_STRING}" install LUA_LIB_DIR="${LUA_LIB_DIR}" \
+    # lua-tablepool
+    && curl -fsSL "https://github.com/openresty/lua-tablepool/archive/v${VER_OPENRESTY_TABLEPOOL}.tar.gz" | tar -xz \
+    && make -C "lua-tablepool-${VER_OPENRESTY_TABLEPOOL}" install LUA_LIB_DIR="${LUA_LIB_DIR}" \
+    # lua-resty-shell
+    && curl -fsSL "https://github.com/openresty/lua-resty-shell/archive/v${VER_OPENRESTY_SHELL}.tar.gz" | tar -xz \
+    && make -C "lua-resty-shell-${VER_OPENRESTY_SHELL}" install LUA_LIB_DIR="${LUA_LIB_DIR}" \
+    # lua-resty-signal
+    && curl -fsSL "https://github.com/openresty/lua-resty-signal/archive/v${VER_OPENRESTY_SIGNAL}.tar.gz" | tar -xz \
+    && make -C "lua-resty-signal-${VER_OPENRESTY_SIGNAL}" install LUA_LIB_DIR="${LUA_LIB_DIR}" \
+    # lua-resty-cookie
+    && curl -fsSL "https://github.com/cloudflare/lua-resty-cookie/archive/${VER_CLOUDFLARE_COOKIE}.tar.gz" | tar -xz \
+    && make -C "lua-resty-cookie-${VER_CLOUDFLARE_COOKIE}" install LUA_LIB_DIR="${LUA_LIB_DIR}" \
+    # nginx-lua-prometheus (single file)
+    && curl -fsSL "https://github.com/knyar/nginx-lua-prometheus/archive/${VER_PROMETHEUS}.tar.gz" | tar -xz \
+    && cp "nginx-lua-prometheus-${VER_PROMETHEUS}/prometheus"*.lua "${LUA_LIB_DIR}/"
+
+# ── LuaRocks ──────────────────────────────────────────────────────────────────
+RUN curl -fsSL "https://luarocks.github.io/luarocks/releases/luarocks-${VER_LUAROCKS}.tar.gz" \
+      | tar -xz \
+    && cd "luarocks-${VER_LUAROCKS}" \
+    && ./configure \
+        --prefix=/usr/local/nginx/luarocks \
+        --with-lua=/usr/local \
+        --lua-suffix=jit \
+        --with-lua-include="${LUAJIT_INC}" \
+    && make \
     && make install
-
-# ── lua-resty-lrucache (dep of resty-core) ────────────────────────────────────
-RUN curl -fsSL "https://github.com/openresty/lua-resty-lrucache/archive/v${VER_RESTY_LRUCACHE}.tar.gz" \
-      | tar -xz \
-    && make -C "lua-resty-lrucache-${VER_RESTY_LRUCACHE}" install \
-        LUA_LIB_DIR=/usr/local/nginx/lua/lib
-
-# ── lua-resty-core ────────────────────────────────────────────────────────────
-RUN curl -fsSL "https://github.com/openresty/lua-resty-core/archive/v${VER_RESTY_CORE}.tar.gz" \
-      | tar -xz \
-    && make -C "lua-resty-core-${VER_RESTY_CORE}" install \
-        LUA_LIB_DIR=/usr/local/nginx/lua/lib
 
 ###############################################################################
 # Stage 2 – packager: assemble final directory layout + bundle libs + tar.gz
@@ -138,13 +259,21 @@ ARG NGINX_UID=1001
 # Copy compiled nginx tree
 COPY --from=builder /usr/local/nginx /pkg/nginx
 
-# Bundle LuaJIT shared library (rpath in nginx binary points to /usr/local/nginx/lib)
+# Bundle LuaJIT shared library (rpath embeds /usr/local/nginx/lib)
 COPY --from=builder /usr/local/lib/libluajit-5.1.so.2* /pkg/nginx/lib/
 
+# Bundle libmaxminddb (required by ngx_http_geoip2_module at runtime)
+RUN apt-get update && apt-get install -y --no-install-recommends libmaxminddb0 \
+    && rm -rf /var/lib/apt/lists/* \
+    && cp -L /usr/lib/$(uname -m)-linux-gnu/libmaxminddb.so.0* /pkg/nginx/lib/
+
 RUN set -ex \
-    # Ensure libluajit symlink exists
-    && LJ_SO=$(ls /pkg/nginx/lib/libluajit-5.1.so.2.* 2>/dev/null | head -1) \
-    && [ -n "$LJ_SO" ] && ln -sf "$(basename $LJ_SO)" /pkg/nginx/lib/libluajit-5.1.so.2 || true \
+    # Fix symlinks in lib/
+    && for f in /pkg/nginx/lib/*.so.*.*; do \
+         base=$(basename "$f"); \
+         so=$(echo "$base" | sed 's/\.[0-9]*$//'); \
+         [ -e "/pkg/nginx/lib/$so" ] || ln -sf "$base" "/pkg/nginx/lib/$so"; \
+       done \
     # Create extra directories matching production layout
     && mkdir -p \
         /pkg/nginx/cert \
@@ -181,10 +310,13 @@ http {
     keepalive_timeout  65;
     gzip  on;
 
-    # lua-resty-* library path
     lua_package_path  "/usr/local/nginx/lua/lib/?.lua;;";
 
     include /usr/local/nginx/conf.d/*.conf;
+}
+
+stream {
+    lua_package_path  "/usr/local/nginx/lua/lib/?.lua;;";
 }
 NGINXEOF
 
@@ -206,10 +338,9 @@ server {
 }
 VHOSTEOF
 
-# ── install.sh: create nginx user/group on target system ─────────────────────
+# ── install.sh ────────────────────────────────────────────────────────────────
 RUN cat > /pkg/nginx/install.sh << INSTALLEOF
 #!/bin/sh
-# Run as root after extracting to /usr/local
 set -e
 NGINX_UID=${NGINX_UID}
 NGINX_GID=${NGINX_UID}
