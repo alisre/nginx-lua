@@ -422,30 +422,30 @@ ARG PKG_DEPS="\
 "
 ENV PKG_DEPS=$PKG_DEPS
 
-COPY --from=builder --chown=101:101 /etc/nginx /etc/nginx
-COPY --from=builder --chown=101:101 /usr/local/lib /usr/local/lib
-COPY --from=builder --chown=101:101 /usr/local/share/lua /usr/local/share/lua
-COPY --from=builder --chown=101:101 /usr/sbin/nginx /usr/sbin/nginx
-COPY --from=builder --chown=101:101 /usr/sbin/nginx-debug /usr/sbin/nginx-debug
-COPY --from=builder --chown=101:101 /var/cache/nginx /var/cache/nginx
+COPY --from=builder --chown=1001:1001 /etc/nginx /etc/nginx
+COPY --from=builder --chown=1001:1001 /usr/local/lib /usr/local/lib
+COPY --from=builder --chown=1001:1001 /usr/local/share/lua /usr/local/share/lua
+COPY --from=builder --chown=1001:1001 /usr/sbin/nginx /usr/sbin/nginx
+COPY --from=builder --chown=1001:1001 /usr/sbin/nginx-debug /usr/sbin/nginx-debug
+COPY --from=builder --chown=1001:1001 /var/cache/nginx /var/cache/nginx
 # luajit
-COPY --from=builder --chown=101:101 /usr/local/lib/libluajit* /usr/local/lib/
-COPY --from=builder --chown=101:101 /usr/local/lib/pkgconfig/luajit* /usr/local/lib/pkgconfig/
-COPY --from=builder --chown=101:101 $LUAJIT_INC $LUAJIT_INC
-COPY --from=builder --chown=101:101 /usr/local/bin/luajit* /usr/local/bin/
-COPY --from=builder --chown=101:101 /usr/local/share/luajit* /usr/local/share/
-COPY --from=builder --chown=101:101 /usr/local/share/man/man1/luajit* /usr/local/share/man/man1/
+COPY --from=builder --chown=1001:1001 /usr/local/lib/libluajit* /usr/local/lib/
+COPY --from=builder --chown=1001:1001 /usr/local/lib/pkgconfig/luajit* /usr/local/lib/pkgconfig/
+COPY --from=builder --chown=1001:1001 $LUAJIT_INC $LUAJIT_INC
+COPY --from=builder --chown=1001:1001 /usr/local/bin/luajit* /usr/local/bin/
+COPY --from=builder --chown=1001:1001 /usr/local/share/luajit* /usr/local/share/
+COPY --from=builder --chown=1001:1001 /usr/local/share/man/man1/luajit* /usr/local/share/man/man1/
 # luarocks
-COPY --from=builder --chown=101:101 /usr/local/share/lua/5.1/luarocks /usr/local/share/lua/5.1/luarocks
-COPY --from=builder --chown=101:101 /usr/local/bin/luarocks* /usr/local/bin/
-COPY --from=builder --chown=101:101 /usr/local/etc/luarocks /usr/local/etc/luarocks
+COPY --from=builder --chown=1001:1001 /usr/local/share/lua/5.1/luarocks /usr/local/share/lua/5.1/luarocks
+COPY --from=builder --chown=1001:1001 /usr/local/bin/luarocks* /usr/local/bin/
+COPY --from=builder --chown=1001:1001 /usr/local/etc/luarocks /usr/local/etc/luarocks
 
-COPY --chown=101:101 tpl/??-*.sh /docker-entrypoint.d/
-COPY --chown=101:101 tpl/default.conf /etc/nginx/conf.d/default.conf
-COPY --chown=101:101 tpl/docker-entrypoint.sh /
-COPY --chown=101:101 tpl/nginx.conf /etc/nginx/nginx.conf
-COPY --chown=101:101 tpl/support.sh /
-COPY --chown=101:101 tpl/licenses /licenses
+COPY --chown=1001:1001 tpl/??-*.sh /docker-entrypoint.d/
+COPY --chown=1001:1001 tpl/default.conf /etc/nginx/conf.d/default.conf
+COPY --chown=1001:1001 tpl/docker-entrypoint.sh /
+COPY --chown=1001:1001 tpl/nginx.conf /etc/nginx/nginx.conf
+COPY --chown=1001:1001 tpl/support.sh /
+COPY --chown=1001:1001 tpl/licenses /licenses
 
 SHELL ["/bin/ash", "-eo", "pipefail", "-c"]
 
@@ -460,8 +460,8 @@ RUN set -eux \
 
 RUN set -x \
 # create nginx user/group first, to be consistent throughout docker variants
-    && addgroup -g 101 -S nginx \
-    && adduser -S -D -H -u 101 -h /var/cache/nginx -s /sbin/nologin -G nginx -g nginx nginx \
+    && addgroup -g 1001 -S nginx \
+    && adduser -S -D -H -u 1001 -h /var/cache/nginx -s /sbin/nologin -G nginx -g nginx nginx \
 # COMMENTED OUT FROM ORIGINAL DOCKERFILE: https://github.com/nginxinc/docker-nginx/blob/1.25.4/mainline/alpine/Dockerfile
 # REASON: No need to use the existing distributed package as the binary is recompiled.
 #     && apkArch="$(cat /etc/apk/arch)" \
