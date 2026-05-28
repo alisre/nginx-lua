@@ -1,0 +1,244 @@
+#               __                     __
+# .-----.-----.|__|.-----.--.--.______|  |.--.--.---.-.
+# |     |  _  ||  ||     |_   _|______|  ||  |  |  _  |
+# |__|__|___  ||__||__|__|__.__|      |__||_____|___._|
+#       |_____|
+#
+# Dockerfile.package — Build self-contained nginx+Lua binary tar.gz (Linux/glibc)
+#
+# Build:
+#   docker buildx build -f Dockerfile.package --output type=local,dest=dist/ .
+#
+# Deploy on target server (Ubuntu 20.04+ / Debian 11+ / RHEL 8+):
+#   tar -C /usr/local -xzf dist/nginx-1.30.2-linux-amd64.tar.gz
+#   /usr/local/nginx/install.sh          # create nginx user (UID 1001)
+#   /usr/local/nginx/sbin/nginx          # start
+
+ARG NGINX_VER=1.30.2
+ARG VER_LUAJIT=2.1-20260415
+ARG VER_NDK=0.3.4
+ARG VER_LUA_NGINX=0.10.29
+ARG VER_RESTY_CORE=0.1.32
+ARG VER_RESTY_LRUCACHE=0.15
+ARG VER_HEADERS_MORE=0.39
+ARG NGINX_UID=1001
+
+###############################################################################
+# Stage 1 – builder: compile nginx + LuaJIT + modules
+###############################################################################
+FROM debian:bookworm AS builder
+
+ARG NGINX_VER VER_LUAJIT VER_NDK VER_LUA_NGINX VER_RESTY_CORE VER_RESTY_LRUCACHE VER_HEADERS_MORE
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        curl \
+        libmaxminddb-dev \
+        libpcre3-dev \
+        libssl-dev \
+        libxml2-dev \
+        libxslt1-dev \
+        zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# ── LuaJIT ───────────────────────────────────────────────────────────────────
+RUN curl -fsSL "https://github.com/openresty/luajit2/archive/v${VER_LUAJIT}.tar.gz" \
+      | tar -xz \
+    && cd "luajit2-${VER_LUAJIT}" \
+    && make -j"$(nproc)" \
+    && make install PREFIX=/usr/local
+
+ENV LUAJIT_LIB=/usr/local/lib
+ENV LUAJIT_INC=/usr/local/include/luajit-2.1
+ENV LD_LIBRARY_PATH=/usr/local/lib
+
+# ── Module sources ────────────────────────────────────────────────────────────
+RUN curl -fsSL "https://github.com/vision5/ngx_devel_kit/archive/v${VER_NDK}.tar.gz" \
+      | tar -xz \
+    && curl -fsSL "https://github.com/openresty/lua-nginx-module/archive/v${VER_LUA_NGINX}.tar.gz" \
+      | tar -xz \
+    && curl -fsSL "https://github.com/openresty/headers-more-nginx-module/archive/v${VER_HEADERS_MORE}.tar.gz" \
+      | tar -xz
+
+# ── nginx ─────────────────────────────────────────────────────────────────────
+#   --with-ld-opt rpath embeds /usr/local/nginx/lib as runtime lib search path
+RUN curl -fsSL "https://nginx.org/download/nginx-${NGINX_VER}.tar.gz" \
+      | tar -xz \
+    && cd "nginx-${NGINX_VER}" \
+    && ./configure \
+        --prefix=/usr/local/nginx \
+        --sbin-path=/usr/local/nginx/sbin/nginx \
+        --conf-path=/usr/local/nginx/conf/nginx.conf \
+        --error-log-path=/usr/local/nginx/logs/error.log \
+        --http-log-path=/usr/local/nginx/logs/access.log \
+        --pid-path=/usr/local/nginx/logs/nginx.pid \
+        --lock-path=/usr/local/nginx/logs/nginx.lock \
+        --http-client-body-temp-path=/usr/local/nginx/client_body_temp \
+        --http-proxy-temp-path=/usr/local/nginx/proxy_temp \
+        --http-fastcgi-temp-path=/usr/local/nginx/fastcgi_temp \
+        --http-uwsgi-temp-path=/usr/local/nginx/uwsgi_temp \
+        --http-scgi-temp-path=/usr/local/nginx/scgi_temp \
+        --user=nginx \
+        --group=nginx \
+        --with-compat \
+        --with-file-aio \
+        --with-threads \
+        --with-http_addition_module \
+        --with-http_auth_request_module \
+        --with-http_dav_module \
+        --with-http_flv_module \
+        --with-http_gunzip_module \
+        --with-http_gzip_static_module \
+        --with-http_mp4_module \
+        --with-http_random_index_module \
+        --with-http_realip_module \
+        --with-http_secure_link_module \
+        --with-http_slice_module \
+        --with-http_ssl_module \
+        --with-http_stub_status_module \
+        --with-http_sub_module \
+        --with-http_v2_module \
+        --with-mail \
+        --with-mail_ssl_module \
+        --with-stream \
+        --with-stream_realip_module \
+        --with-stream_ssl_module \
+        --with-stream_ssl_preread_module \
+        --add-module="/build/ngx_devel_kit-${VER_NDK}" \
+        --add-module="/build/lua-nginx-module-${VER_LUA_NGINX}" \
+        --add-module="/build/headers-more-nginx-module-${VER_HEADERS_MORE}" \
+        --with-cc-opt="-O2 -fstack-protector-strong -I${LUAJIT_INC}" \
+        --with-ld-opt="-L${LUAJIT_LIB} -Wl,-rpath,/usr/local/nginx/lib -Wl,-z,relro -Wl,-z,now" \
+    && make -j"$(nproc)" \
+    && make install
+
+# ── lua-resty-lrucache (dep of resty-core) ────────────────────────────────────
+RUN curl -fsSL "https://github.com/openresty/lua-resty-lrucache/archive/v${VER_RESTY_LRUCACHE}.tar.gz" \
+      | tar -xz \
+    && make -C "lua-resty-lrucache-${VER_RESTY_LRUCACHE}" install \
+        LUA_LIB_DIR=/usr/local/nginx/lua/lib
+
+# ── lua-resty-core ────────────────────────────────────────────────────────────
+RUN curl -fsSL "https://github.com/openresty/lua-resty-core/archive/v${VER_RESTY_CORE}.tar.gz" \
+      | tar -xz \
+    && make -C "lua-resty-core-${VER_RESTY_CORE}" install \
+        LUA_LIB_DIR=/usr/local/nginx/lua/lib
+
+###############################################################################
+# Stage 2 – packager: assemble final directory layout + bundle libs + tar.gz
+###############################################################################
+FROM debian:bookworm AS packager
+
+ARG NGINX_VER=1.30.2
+ARG NGINX_UID=1001
+
+# Copy compiled nginx tree
+COPY --from=builder /usr/local/nginx /pkg/nginx
+
+# Bundle LuaJIT shared library (rpath in nginx binary points to /usr/local/nginx/lib)
+COPY --from=builder /usr/local/lib/libluajit-5.1.so.2* /pkg/nginx/lib/
+
+RUN set -ex \
+    # Ensure libluajit symlink exists
+    && LJ_SO=$(ls /pkg/nginx/lib/libluajit-5.1.so.2.* 2>/dev/null | head -1) \
+    && [ -n "$LJ_SO" ] && ln -sf "$(basename $LJ_SO)" /pkg/nginx/lib/libluajit-5.1.so.2 || true \
+    # Create extra directories matching production layout
+    && mkdir -p \
+        /pkg/nginx/cert \
+        /pkg/nginx/conf.d \
+        /pkg/nginx/geoIP \
+        /pkg/nginx/logs \
+        /pkg/nginx/proxy_cache \
+        /pkg/nginx/ssl
+
+# ── nginx.conf ────────────────────────────────────────────────────────────────
+RUN cat > /pkg/nginx/conf/nginx.conf << 'NGINXEOF'
+user  nginx;
+worker_processes  auto;
+
+error_log  logs/error.log warn;
+pid        logs/nginx.pid;
+
+events {
+    worker_connections  1024;
+}
+
+http {
+    include       mime.types;
+    default_type  application/octet-stream;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    access_log  logs/access.log  main;
+
+    sendfile        on;
+    tcp_nopush      on;
+    keepalive_timeout  65;
+    gzip  on;
+
+    # lua-resty-* library path
+    lua_package_path  "/usr/local/nginx/lua/lib/?.lua;;";
+
+    include /usr/local/nginx/conf.d/*.conf;
+}
+NGINXEOF
+
+# ── default vhost ─────────────────────────────────────────────────────────────
+RUN cat > /pkg/nginx/conf.d/default.conf << 'VHOSTEOF'
+server {
+    listen       80;
+    server_name  localhost;
+
+    location / {
+        root   html;
+        index  index.html index.htm;
+    }
+
+    error_page   500 502 503 504  /50x.html;
+    location = /50x.html {
+        root   html;
+    }
+}
+VHOSTEOF
+
+# ── install.sh: create nginx user/group on target system ─────────────────────
+RUN cat > /pkg/nginx/install.sh << INSTALLEOF
+#!/bin/sh
+# Run as root after extracting to /usr/local
+set -e
+NGINX_UID=${NGINX_UID}
+NGINX_GID=${NGINX_UID}
+
+if ! getent group nginx > /dev/null 2>&1; then
+    groupadd -g "\${NGINX_GID}" -r nginx
+    echo "Created group nginx (GID \${NGINX_GID})"
+fi
+if ! id nginx > /dev/null 2>&1; then
+    useradd -u "\${NGINX_UID}" -r -g nginx -s /sbin/nologin \
+            -d /usr/local/nginx -c "nginx worker" nginx
+    echo "Created user nginx (UID \${NGINX_UID})"
+fi
+
+echo ""
+echo "Done. Usage:"
+echo "  /usr/local/nginx/sbin/nginx          # start"
+echo "  /usr/local/nginx/sbin/nginx -t       # test config"
+echo "  /usr/local/nginx/sbin/nginx -s reload"
+echo "  /usr/local/nginx/sbin/nginx -s stop"
+INSTALLEOF
+RUN chmod +x /pkg/nginx/install.sh
+
+# ── create tar.gz ─────────────────────────────────────────────────────────────
+RUN cd /pkg && tar czf /nginx-${NGINX_VER}-linux-amd64.tar.gz nginx/
+
+###############################################################################
+# Stage 3 – export: only the tar.gz
+###############################################################################
+FROM scratch
+ARG NGINX_VER=1.30.2
+COPY --from=packager /nginx-${NGINX_VER}-linux-amd64.tar.gz /
