@@ -581,7 +581,7 @@ RUN envsubst -V \
 
 EXPOSE 80 443
 
-HEALTHCHECK --interval=30s --timeout=3s CMD curl --fail http://localhost/ || exit 1
+HEALTHCHECK --interval=30s --timeout=3s   --start-period=60s --retries=3  CMD curl -k --fail https://localhost/ || exit 1
 
 # Override stop signal to stop process gracefully
 STOPSIGNAL SIGQUIT
