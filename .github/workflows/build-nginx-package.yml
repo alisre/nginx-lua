@@ -6,7 +6,7 @@ on:
       nginx_ver:
         description: "Nginx version"
         required: true
-        default: "1.30.2"
+        default: "1.30.4"
   push:
     branches:
       - main
@@ -28,7 +28,7 @@ jobs:
       - name: Set version
         id: vars
         run: |
-          VER="${{ github.event.inputs.nginx_ver || '1.30.2' }}"
+          VER="${{ github.event.inputs.nginx_ver || '1.30.4' }}"
           echo "nginx_ver=${VER}" >> "$GITHUB_OUTPUT"
           echo "pkg_name=nginx-${VER}-linux-amd64.tar.gz" >> "$GITHUB_OUTPUT"
 
