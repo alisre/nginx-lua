@@ -47,7 +47,7 @@ ENV VER_NGX_DEVEL_KIT=$VER_NGX_DEVEL_KIT
 
 # njs
 # https://github.com/nginx/njs
-ARG VER_NJS=0.9.9
+ARG VER_NJS=1.0.0
 ENV VER_NJS=$VER_NJS
 
 # geoip2
@@ -66,7 +66,7 @@ ENV VER_GEOIP=$VER_GEOIP
 # consistently in the system. If needed to use the latest Lua version (ie >=5.4)
 # the os system package would be required, resulting in a system with multiple
 # versions available.
-ARG VER_LUAJIT=2.1-20260415
+ARG VER_LUAJIT=2.1-20260701
 ENV VER_LUAJIT=$VER_LUAJIT
 ARG LUAJIT_LIB=/usr/local/lib
 ENV LUAJIT_LIB=$LUAJIT_LIB
@@ -102,7 +102,7 @@ ENV VER_LUAROCKS=$VER_LUAROCKS
 
 # headers-more-nginx-module
 # https://github.com/openresty/headers-more-nginx-module
-ARG VER_OPENRESTY_HEADERS=0.39
+ARG VER_OPENRESTY_HEADERS=0.40
 ENV VER_OPENRESTY_HEADERS=$VER_OPENRESTY_HEADERS
 
 # lua-resty-cookie
@@ -123,12 +123,12 @@ ENV VER_LUA_RESTY_LRUCACHE=$VER_LUA_RESTY_LRUCACHE
 
 # lua-resty-memcached
 # https://github.com/openresty/lua-resty-memcached
-ARG VER_OPENRESTY_MEMCACHED=0.17
+ARG VER_OPENRESTY_MEMCACHED=0.18
 ENV VER_OPENRESTY_MEMCACHED=$VER_OPENRESTY_MEMCACHED
 
 # lua-resty-mysql
 # https://github.com/openresty/lua-resty-mysql
-ARG VER_OPENRESTY_MYSQL=0.30
+ARG VER_OPENRESTY_MYSQL=0.31
 ENV VER_OPENRESTY_MYSQL=$VER_OPENRESTY_MYSQL
 
 # lua-resty-redis
@@ -143,17 +143,17 @@ ENV VER_OPENRESTY_SHELL=$VER_OPENRESTY_SHELL
 
 # lua-resty-signal
 # https://github.com/openresty/lua-resty-signal
-ARG VER_OPENRESTY_SIGNAL=0.04
+ARG VER_OPENRESTY_SIGNAL=0.05
 ENV VER_OPENRESTY_SIGNAL=$VER_OPENRESTY_SIGNAL
 
 # lua-resty-upstream-healthcheck
 # https://github.com/openresty/lua-resty-upstream-healthcheck
-ARG VER_OPENRESTY_HEALTHCHECK=0.09
+ARG VER_OPENRESTY_HEALTHCHECK=0.10
 ENV VER_OPENRESTY_HEALTHCHECK=$VER_OPENRESTY_HEALTHCHECK
 
 # lua-resty-websocket
 # https://github.com/openresty/lua-resty-websocket
-ARG VER_OPENRESTY_WEBSOCKET=0.13
+ARG VER_OPENRESTY_WEBSOCKET=0.14
 ENV VER_OPENRESTY_WEBSOCKET=$VER_OPENRESTY_WEBSOCKET
 
 # lua-tablepool
@@ -173,12 +173,12 @@ ENV VER_PROMETHEUS=$VER_PROMETHEUS
 
 # set-misc-nginx-module
 # https://github.com/openresty/set-misc-nginx-module
-ARG VER_MISC_NGINX=0.33
+ARG VER_MISC_NGINX=0.34
 ENV VER_MISC_NGINX=$VER_MISC_NGINX
 
 # stream-lua-nginx-module
 # https://github.com/openresty/stream-lua-nginx-module
-ARG VER_OPENRESTY_STREAMLUA=86cf76e3b62a5dea50813b3a00ff87b628c41aa4
+ARG VER_OPENRESTY_STREAMLUA=11f9e38a20dc79783a9d793201d6ec399ff368e7
 ENV VER_OPENRESTY_STREAMLUA=$VER_OPENRESTY_STREAMLUA
 
 # lua-resty-limit-traffic
@@ -203,7 +203,7 @@ ENV VER_OPENRESTY_BALANCER=$VER_OPENRESTY_BALANCER
 
 # lua-resty-string
 # https://github.com/openresty/lua-resty-string/tags
-ARG VER_OPENRESTY_STRING=0.17
+ARG VER_OPENRESTY_STRING=0.19
 ENV VER_OPENRESTY_STRING=$VER_OPENRESTY_STRING
 
 ################################################################################
