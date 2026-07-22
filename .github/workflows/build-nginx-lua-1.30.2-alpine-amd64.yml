@@ -28,8 +28,8 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: nginx/1.30.2/alpine/3.23.4
-          file: nginx/1.30.2/alpine/3.23.4/Dockerfile
+          context: nginx/1.30.4/alpine/3.23.4
+          file: nginx/1.30.4/alpine/3.23.4/Dockerfile
           platforms: linux/amd64
           push: true
           build-args: |
@@ -37,5 +37,4 @@ jobs:
             BUILD_DATE=${{ github.run_id }}
             VCS_REF=${{ github.sha }}
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/nginx-lua:1.30.2-alpine3.23.4
-            ${{ secrets.DOCKERHUB_USERNAME }}/nginx-lua:1.30.2-alpine
+            ${{ secrets.DOCKERHUB_USERNAME }}/nginx-lua:1.30.4-alpine
