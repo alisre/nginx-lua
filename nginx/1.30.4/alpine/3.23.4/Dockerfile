@@ -9,7 +9,7 @@
 
 ARG ARCH=
 ARG DISTRO=alpine
-ARG DISTRO_VER=3.23.4
+ARG DISTRO_VER=3.24.1
 
 #############################
 # Settings Common Variables #
@@ -33,7 +33,7 @@ ENV VCS_REF=$VCS_REF
 
 # nginx
 # https://github.com/nginx/nginx/releases
-ARG VER_NGINX=1.30.2
+ARG VER_NGINX=1.30.4
 ENV VER_NGINX=$VER_NGINX
 
 # NGINX MODULES
