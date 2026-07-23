@@ -33,7 +33,7 @@ ENV VCS_REF=$VCS_REF
 
 # nginx
 # https://github.com/nginx/nginx/releases
-ARG VER_NGINX=1.30.3
+ARG VER_NGINX=1.30.4
 ENV VER_NGINX=$VER_NGINX
 
 # NGINX MODULES
