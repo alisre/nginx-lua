@@ -73,10 +73,12 @@ openresty-patches:
 		echo "copying openresty patch $${patch_file}"; \
 		cp "$${patch_file}" /nginx-${VER_NGINX}/patches/; \
 	done; \
-	for patch_file in /patches/*.patch; do \
-		echo "overriding openresty patch $${patch_file}"; \
-		cp "$${patch_file}" /nginx-${VER_NGINX}/patches/; \
-	done; \
+	if ls /patches/*.patch >/dev/null 2>&1; then \
+		for patch_file in /patches/*.patch; do \
+			echo "overriding openresty patch $${patch_file}"; \
+			cp "$${patch_file}" /nginx-${VER_NGINX}/patches/; \
+		done; \
+	fi; \
 	cd /nginx-${VER_NGINX}; \
 	for patch_file in patches/*.patch; do \
 		if [ "$$(echo "$(SKIPPED_PATCHES)" | grep -qw "$${patch_file}"; echo $$?)" -eq 0 ]; then \

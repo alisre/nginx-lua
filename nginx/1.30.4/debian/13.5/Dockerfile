@@ -346,7 +346,6 @@ RUN set -eux \
 
 COPY tpl/Makefile Makefile
 COPY tpl/.env.dist .env.dist
-COPY tpl/patches patches
 
 RUN make deps \
     && make core \
