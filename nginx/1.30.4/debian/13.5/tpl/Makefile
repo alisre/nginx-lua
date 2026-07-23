@@ -53,7 +53,9 @@ endef
 # CORE
 # ##############################################################################
 
-SKIPPED_PATCHES=""
+SKIPPED_PATCHES=" \
+patches/nginx-1.29.8-log_escape_non_ascii.patch \
+"
 openresty-patches:
 	mkdir -p /nginx-${VER_NGINX}/patches
 	git clone https://github.com/openresty/openresty.git; \
