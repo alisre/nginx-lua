@@ -1,20 +1,40 @@
-name: Build nginx-lua 1.30.2 Alpine AMD64
+name: Build nginx-lua image and package
 
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+      - "release/*"
     paths:
-      - 'nginx/1.30.4/alpine/3.24.1/**'
+      - "nginx/1.30.4/alpine/3.24.1/**"
+      - "nginx/1.30.4/debian/13.5/**"
+      - ".github/workflows/build-binary.yml"
 
 jobs:
-  build-and-push:
+  build-image-and-package:
     runs-on: ubuntu-latest
+    env:
+      ALPINE_CONTEXT: nginx/1.30.4/alpine/3.24.1
+      ALPINE_DOCKERFILE: nginx/1.30.4/alpine/3.24.1/Dockerfile
+      DEBIAN_CONTEXT: nginx/1.30.4/debian/13.5
+      DEBIAN_DOCKERFILE: nginx/1.30.4/debian/13.5/Dockerfile
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set build metadata
+        id: vars
+        run: |
+          set -euo pipefail
+          nginx_version="$(awk -F= '/^ARG VER_NGINX=/{print $2; exit}' "$DEBIAN_DOCKERFILE")"
+          image_version="$(echo "$ALPINE_CONTEXT" | cut -d/ -f2)"
+
+          echo "nginx_version=${nginx_version}" >> "$GITHUB_OUTPUT"
+          echo "package_name=nginx-${nginx_version}-linux-amd64.tar.gz" >> "$GITHUB_OUTPUT"
+          echo "image_tag=${{ secrets.DOCKERHUB_USERNAME }}/nginx-lua:${image_version}-alpine" >> "$GITHUB_OUTPUT"
+          echo "package_image=nginx-lua-package:${nginx_version}-debian13.5-amd64" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -25,11 +45,11 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build and push Alpine image
         uses: docker/build-push-action@v6
         with:
-          context: nginx/1.30.4/alpine/3.24.1
-          file: nginx/1.30.4/alpine/3.24.1/Dockerfile
+          context: ${{ env.ALPINE_CONTEXT }}
+          file: ${{ env.ALPINE_DOCKERFILE }}
           platforms: linux/amd64
           push: true
           build-args: |
@@ -37,4 +57,131 @@ jobs:
             BUILD_DATE=${{ github.run_id }}
             VCS_REF=${{ github.sha }}
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/nginx-lua:1.30.4-alpine
+            ${{ steps.vars.outputs.image_tag }}
+
+      - name: Build Debian package source image
+        run: |
+          set -euo pipefail
+          docker buildx build \
+            --platform linux/amd64 \
+            --file "$DEBIAN_DOCKERFILE" \
+            --tag "${{ steps.vars.outputs.package_image }}" \
+            --build-arg ARCH=amd64 \
+            --build-arg BUILD_DATE="${{ github.run_id }}" \
+            --build-arg VCS_REF="${{ github.sha }}" \
+            --load \
+            "$DEBIAN_CONTEXT"
+
+      - name: Assemble nginx package artifact
+        run: |
+          set -euo pipefail
+
+          package_root="$PWD/dist/package-root/nginx"
+          rootfs="$package_root/rootfs"
+
+          mkdir -p \
+            "$rootfs/etc/nginx" \
+            "$rootfs/usr/local/bin" \
+            "$rootfs/usr/local/etc/luarocks" \
+            "$rootfs/usr/local/include" \
+            "$rootfs/usr/local/lib" \
+            "$rootfs/usr/local/share/lua" \
+            "$rootfs/usr/sbin" \
+            "$rootfs/var/cache/nginx" \
+            "$rootfs/var/log/nginx" \
+            "$rootfs/licenses"
+
+          container_id="$(docker create "${{ steps.vars.outputs.package_image }}")"
+          cleanup() {
+            docker rm -f "$container_id" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          docker cp "$container_id":/etc/nginx/. "$rootfs/etc/nginx/"
+          docker cp "$container_id":/usr/sbin/nginx "$rootfs/usr/sbin/nginx"
+          docker cp "$container_id":/usr/sbin/nginx-debug "$rootfs/usr/sbin/nginx-debug"
+          docker cp "$container_id":/usr/local/lib/. "$rootfs/usr/local/lib/"
+          docker cp "$container_id":/usr/local/share/lua/. "$rootfs/usr/local/share/lua/"
+          docker cp "$container_id":/usr/local/etc/luarocks/. "$rootfs/usr/local/etc/luarocks/"
+          docker cp "$container_id":/usr/local/include/luajit-2.1 "$rootfs/usr/local/include/luajit-2.1"
+          docker cp "$container_id":/usr/local/bin/luajit "$rootfs/usr/local/bin/luajit"
+          docker cp "$container_id":/usr/local/bin/lua "$rootfs/usr/local/bin/lua"
+          docker cp "$container_id":/usr/local/bin/luarocks "$rootfs/usr/local/bin/luarocks"
+          docker cp "$container_id":/usr/local/bin/luarocks-admin "$rootfs/usr/local/bin/luarocks-admin" || true
+          docker cp "$container_id":/var/cache/nginx/. "$rootfs/var/cache/nginx/" || true
+          docker cp "$container_id":/licenses/. "$rootfs/licenses/" || true
+
+          cat > "$package_root/install.sh" <<'EOF'
+          #!/bin/sh
+          set -eu
+
+          SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+          ROOTFS="$SCRIPT_DIR/rootfs"
+          NGINX_UID=1001
+          NGINX_GID=1001
+
+          if [ "$(id -u)" -ne 0 ]; then
+              echo "Run install.sh as root." >&2
+              exit 1
+          fi
+
+          has_group() {
+              if command -v getent >/dev/null 2>&1; then
+                  getent group nginx >/dev/null 2>&1
+              else
+                  grep -q '^nginx:' /etc/group
+              fi
+          }
+
+          has_user() {
+              if command -v getent >/dev/null 2>&1; then
+                  getent passwd nginx >/dev/null 2>&1
+              else
+                  grep -q '^nginx:' /etc/passwd
+              fi
+          }
+
+          if ! has_group; then
+              if command -v groupadd >/dev/null 2>&1; then
+                  groupadd -g "$NGINX_GID" -r nginx
+              elif command -v addgroup >/dev/null 2>&1; then
+                  addgroup -g "$NGINX_GID" -S nginx
+              else
+                  echo "No supported group creation tool found." >&2
+                  exit 1
+              fi
+          fi
+
+          if ! has_user; then
+              if command -v useradd >/dev/null 2>&1; then
+                  useradd -u "$NGINX_UID" -r -g nginx -s /sbin/nologin -d /var/cache/nginx -c "nginx worker" nginx
+              elif command -v adduser >/dev/null 2>&1; then
+                  adduser -S -D -H -u "$NGINX_UID" -h /var/cache/nginx -s /sbin/nologin -G nginx -g nginx nginx
+              else
+                  echo "No supported user creation tool found." >&2
+                  exit 1
+              fi
+          fi
+
+          mkdir -p /var/cache/nginx /var/log/nginx /run
+          cp -a "$ROOTFS"/. /
+          chown -R nginx:nginx /var/cache/nginx /var/log/nginx
+          ln -sf /usr/local/bin/luajit /usr/local/bin/lua
+
+          echo ""
+          echo "Done. Usage:"
+          echo "  /usr/sbin/nginx -t"
+          echo "  /usr/sbin/nginx"
+          echo "  /usr/sbin/nginx -s reload"
+          EOF
+
+          chmod +x "$package_root/install.sh"
+
+          tar -C "$PWD/dist/package-root" -czf "$PWD/dist/${{ steps.vars.outputs.package_name }}" nginx
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.vars.outputs.package_name }}
+          path: dist/${{ steps.vars.outputs.package_name }}
+          retention-days: 30
