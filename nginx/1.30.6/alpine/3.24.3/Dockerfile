@@ -55,6 +55,21 @@ ENV VER_NJS=$VER_NJS
 ARG VER_GEOIP=3.4
 ENV VER_GEOIP=$VER_GEOIP
 
+# ngx_brotli
+# https://github.com/google/ngx_brotli
+ARG VER_NGX_BROTLI=a71f9312c2deb28875acc7bacfdd5695a111aa53
+ENV VER_NGX_BROTLI=$VER_NGX_BROTLI
+
+# zstd-nginx-module
+# https://github.com/tokers/zstd-nginx-module/releases
+ARG VER_ZSTD_NGINX=0.1.1
+ENV VER_ZSTD_NGINX=$VER_ZSTD_NGINX
+
+# quickjs (njs QuickJS engine), empty = master
+# https://github.com/bellard/quickjs
+ARG VER_QUICKJS=
+ENV VER_QUICKJS=$VER_QUICKJS
+
 # LUA
 ################################################################################
 
@@ -232,7 +247,8 @@ ENV PKG_RELEASE     1~$DISTRO_VER
 # -Wp,-D_FORTIFY_SOURCE=2   Run-time buffer overflow detection
 # -fPIC                     No text relocations
 # ORIGINAL VALUE: -g -O2 -ffile-prefix-map=/home/builder/debuild/nginx-1.27.5/debian/debuild-base/nginx-1.27.5=. -fstack-protector-strong -Wformat -Werror=format-security -Wp,-D_FORTIFY_SOURCE=2 -fPIC
-ARG NGX_CFLAGS="-g -O2 -fstack-protector-strong -Wformat -Werror=format-security -Wp,-D_FORTIFY_SOURCE=2 -fPIC"
+# -flto/-I/quickjs: needed to link njs against QuickJS (macbre/docker-nginx-http3#152)
+ARG NGX_CFLAGS="-g -O2 -fstack-protector-strong -Wformat -Werror=format-security -Wp,-D_FORTIFY_SOURCE=2 -fPIC -flto=auto -ffat-lto-objects -I/quickjs"
 ENV NGX_CFLAGS=$NGX_CFLAGS
 # References
 #  - https://developers.redhat.com/blog/2018/03/21/compiler-and-linker-flags-gcc
@@ -245,7 +261,7 @@ ENV NGX_CFLAGS=$NGX_CFLAGS
 # -Wl,--as-needed             Only link with needed libraries
 # -pie                        Full ASLR for executables
 # ORIGINAL VALUE: -Wl,-z,relro -Wl,-z,now -Wl,--as-needed -pie
-ARG NGX_LDOPT="-Wl,-rpath,/usr/local/lib -Wl,-z,relro -Wl,-z,now -Wl,--as-needed -pie"
+ARG NGX_LDOPT="-Wl,-rpath,/usr/local/lib -Wl,-z,relro -Wl,-z,now -Wl,--as-needed -pie -flto=auto -L/quickjs"
 ENV NGX_LDOPT=$NGX_LDOPT
 # Reference: http://nginx.org/en/docs/configure.html
 ARG NGINX_BUILD_CONFIG="\
@@ -292,6 +308,11 @@ ARG NGINX_BUILD_CONFIG="\
             --with-stream_realip_module \
             --with-stream_ssl_module \
             --with-stream_ssl_preread_module \
+            --with-http_xslt_module=dynamic \
+            --with-http_image_filter_module=dynamic \
+            --with-http_geoip_module=dynamic \
+            --with-http_perl_module=dynamic \
+            --with-stream_geoip_module=dynamic \
             `# CUSTOM MODULES` \
             --add-module=/headers-more-nginx-module-${VER_OPENRESTY_HEADERS} \
             --add-module=/lua-nginx-module-${VER_LUA_NGINX_MODULE} \
@@ -302,6 +323,8 @@ ARG NGINX_BUILD_CONFIG="\
             --add-module=/set-misc-nginx-module-${VER_MISC_NGINX} \
             --add-module=/echo-nginx-module-${VER_ECHO_NGINX} \
             --add-module=/stream-lua-nginx-module-${VER_OPENRESTY_STREAMLUA} \
+            --add-module=/ngx_brotli \
+            --add-module=/zstd-nginx-module \
 "
 ENV NGINX_BUILD_CONFIG=$NGINX_BUILD_CONFIG
 
@@ -369,6 +392,15 @@ ARG NGINX_BUILD_DEPS="\
         zlib-dev \
 # OPENRESTY PATCHES
         git \
+# HTTP3 EXTRAS (brotli, zstd, quickjs/njs, dynamic modules)
+        autoconf \
+        automake \
+        cmake \
+        gd-dev \
+        geoip-dev \
+        libedit-dev \
+        libtool \
+        zstd-dev \
 "
 ENV NGINX_BUILD_DEPS=$NGINX_BUILD_DEPS
 
@@ -400,8 +432,11 @@ COPY tpl/patches patches
 COPY tpl/start-test-daemons.sh start-test-daemons.sh
 
 RUN make deps \
+    && make deps-http3 \
+    && make njs-cli \
     && make core \
-    && make luarocks
+    && make luarocks \
+    && curl -sfL https://ssl-config.mozilla.org/ffdhe2048.txt -o /etc/ssl/dhparam.pem
 
 # Test prerequisites: install the heavier Perl deps of Test::Nginx from Alpine's
 # repos instead of letting cpanm build them from CPAN source. Building these in
@@ -474,7 +509,10 @@ LABEL maintainer="Fabio Cicerchia <info@fabiocicerchia.it>" \
     versions.nginx-lua-prometheus="${VER_PROMETHEUS}" \
     versions.set-misc-nginx=${VER_MISC_NGINX} \
     versions.echo-nginx=${VER_ECHO_NGINX} \
-    versions.stream-lua-nginx-module="${VER_OPENRESTY_STREAMLUA}"
+    versions.stream-lua-nginx-module="${VER_OPENRESTY_STREAMLUA}" \
+    versions.ngx_brotli="${VER_NGX_BROTLI}" \
+    versions.zstd-nginx-module="${VER_ZSTD_NGINX}" \
+    versions.quickjs="${VER_QUICKJS}"
 
 # wget is required due to https://github.com/luarocks/luarocks/issues/952
 ARG PKG_DEPS="\
@@ -486,6 +524,12 @@ ARG PKG_DEPS="\
         unzip \
         wget \
         zlib-dev \
+        gd \
+        geoip \
+        libedit \
+        libxslt \
+        perl \
+        zstd-libs \
 "
 ENV PKG_DEPS=$PKG_DEPS
 
@@ -495,6 +539,12 @@ COPY --from=builder --chown=101:101 /usr/local/share/lua /usr/local/share/lua
 COPY --from=builder --chown=101:101 /usr/sbin/nginx /usr/sbin/nginx
 COPY --from=builder --chown=101:101 /usr/sbin/nginx-debug /usr/sbin/nginx-debug
 COPY --from=builder --chown=101:101 /var/cache/nginx /var/cache/nginx
+# http3 extras: dynamic modules, perl module, njs cli, dhparam
+COPY --from=builder --chown=101:101 /usr/lib/nginx/modules /usr/lib/nginx/modules
+COPY --from=builder /usr/lib/perl5/vendor_perl/nginx.pm /usr/lib/perl5/vendor_perl/nginx.pm
+COPY --from=builder /usr/lib/perl5/vendor_perl/auto/nginx /usr/lib/perl5/vendor_perl/auto/nginx
+COPY --from=builder /usr/sbin/njs /usr/sbin/njs
+COPY --from=builder /etc/ssl/dhparam.pem /etc/ssl/dhparam.pem
 # luajit
 COPY --from=builder --chown=101:101 /usr/local/lib/libluajit* /usr/local/lib/
 COPY --from=builder --chown=101:101 /usr/local/lib/pkgconfig/luajit* /usr/local/lib/pkgconfig/
@@ -511,6 +561,8 @@ COPY --chown=101:101 tpl/??-*.sh /docker-entrypoint.d/
 COPY --chown=101:101 tpl/default.conf /etc/nginx/conf.d/default.conf
 COPY --chown=101:101 tpl/docker-entrypoint.sh /
 COPY --chown=101:101 tpl/nginx.conf /etc/nginx/nginx.conf
+COPY --chown=101:101 tpl/nginx-http3.conf /etc/nginx/conf.d/nginx-http3.conf
+COPY --chown=101:101 tpl/modules.conf /etc/nginx/main.d/modules.conf
 COPY --chown=101:101 tpl/support.sh /
 COPY --chown=101:101 tpl/licenses /licenses
 
@@ -522,6 +574,7 @@ RUN set -eux \
     && apk add --no-cache --virtual .pkg_deps \
         $PKG_DEPS \
     && mkdir -p /var/log/nginx \
+    && ln -sfn /usr/lib/nginx/modules /etc/nginx/modules \
 # Fix LUA alias
     && ln -sf /usr/local/bin/luajit /usr/local/bin/lua
 
@@ -635,6 +688,8 @@ RUN apk upgrade
 RUN envsubst -V \
     && nginx -V \
     && nginx -t \
+    && for m in /usr/lib/nginx/modules/*.so; do nginx -t -q -g "load_module $m;"; done \
+    && njs -v \
     && luajit -v \
     && lua -v \
     && luarocks --version

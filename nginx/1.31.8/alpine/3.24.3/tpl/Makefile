@@ -421,6 +421,38 @@ luarocks:
 	&& $(MAKE) \
 	&& $(MAKE) install
 
+# ##############################################################################
+# HTTP3 EXTRAS (ported from macbre/docker-nginx-http3, alpine only)
+# ##############################################################################
+
+deps-http3: dep-ngx-brotli dep-zstd-nginx-module dep-quickjs
+
+dep-ngx-brotli:
+	mkdir -p /ngx_brotli
+	cd /ngx_brotli \
+	&& git init -q \
+	&& git remote add origin https://github.com/google/ngx_brotli.git \
+	&& git fetch --depth 1 origin ${VER_NGX_BROTLI} \
+	&& git checkout --recurse-submodules -q FETCH_HEAD \
+	&& git submodule update --init --depth 1
+
+dep-zstd-nginx-module:
+	git clone --depth 1 --branch ${VER_ZSTD_NGINX} https://github.com/tokers/zstd-nginx-module.git /zstd-nginx-module
+
+dep-quickjs:
+	git clone https://github.com/bellard/quickjs.git /quickjs
+	cd /quickjs \
+	&& if [ -n "${VER_QUICKJS}" ]; then git checkout -q ${VER_QUICKJS}; fi \
+	&& git rev-parse HEAD \
+	&& $(MAKE) libquickjs.a
+
+# Must run before `core`: same order as upstream http3 image.
+njs-cli:
+	cd /njs-${VER_NJS} \
+	&& ./configure --cc-opt='-I/quickjs' --ld-opt='-L/quickjs' \
+	&& $(MAKE) njs \
+	&& install -m755 build/njs /usr/sbin/njs
+
 
 #### TEST
 .prereq-test:

@@ -35,7 +35,7 @@ SAFE_NAME_REPLACEMENT = "-"
 ENV_DIST_FILE = ".env.dist"
 
 # Configuration files
-CONFIG_FILES = ["default.conf", "Makefile", "nginx.conf"]
+CONFIG_FILES = ["default.conf", "Makefile", "nginx.conf", "nginx-http3.conf", "modules.conf"]
 
 
 def read_file(file_path):
