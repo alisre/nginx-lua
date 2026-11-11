@@ -39,6 +39,8 @@ jobs:
     name: Build Alpine images (amd64)
     runs-on: ubuntu-latest
     timeout-minutes: 180
+    env:
+      DOCKERHUB_IMAGE: ${{ github.ref == 'refs/heads/main' && format('{0}/nginx-lua', secrets.DOCKERHUB_USERNAME) || 'fabiocicerchia/nginx-lua' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -49,3 +51,14 @@ jobs:
 
       - name: Build Alpine images
         run: ./bin/docker-build.py alpine amd64
+
+      - name: Login to DockerHub
+        if: github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push Alpine images
+        if: github.ref == 'refs/heads/main'
+        run: ./bin/docker-push.py alpine

@@ -12,7 +12,7 @@ from pathlib import Path
 # Configuration
 SUPPORTED_OS = ["almalinux", "alpine", "amazonlinux", "debian", "fedora", "ubuntu"]
 DEFAULT_DISTRO = "alpine"
-IMAGE_REPO = "fabiocicerchia/nginx-lua"
+IMAGE_REPO = os.environ.get("DOCKERHUB_IMAGE", "fabiocicerchia/nginx-lua")
 
 # File and path constants
 DIST_DIR = "dist"
