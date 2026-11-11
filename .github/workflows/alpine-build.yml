@@ -1,0 +1,51 @@
+name: Build Alpine images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - supported_versions
+      - src/**
+      - bin/common.py
+      - bin/docker-build.py
+      - bin/docker_ops.py
+      - bin/generate-dockerfiles.py
+      - nginx/**/alpine/**
+      - .github/workflows/alpine-build.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - supported_versions
+      - src/**
+      - bin/common.py
+      - bin/docker-build.py
+      - bin/docker_ops.py
+      - bin/generate-dockerfiles.py
+      - nginx/**/alpine/**
+      - .github/workflows/alpine-build.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alpine-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Alpine images (amd64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Generate Dockerfiles
+        run: python3 bin/generate-dockerfiles.py
+
+      - name: Build Alpine images
+        run: ./bin/docker-build.py alpine amd64
