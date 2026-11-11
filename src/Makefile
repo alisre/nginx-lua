@@ -156,7 +156,10 @@ core:
 	&& $(MAKE) build \
 	&& $(MAKE) modules \
 	&& install -m755 objs/nginx-debug /usr/sbin/nginx-debug \
-	&& $(MAKE) install
+	&& $(MAKE) install \
+	&& install -D -m644 objs/src/http/modules/perl/blib/lib/nginx.pm /usr/lib/perl5/vendor_perl/nginx.pm \
+	&& mkdir -p /usr/lib/perl5/vendor_perl/auto/nginx \
+	&& cp -a objs/src/http/modules/perl/blib/arch/auto/nginx/. /usr/lib/perl5/vendor_perl/auto/nginx/
 # Upstream lua-resty-*/openresty test suites hardcode
 # PATH=/usr/local/openresty(-debug)/nginx/sbin:$$PATH in their own Makefiles
 # (matching an official OpenResty install layout) to pick a release or debug
