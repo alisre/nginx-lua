@@ -38,7 +38,7 @@ def main():
             sys.exit(1)
         ver = versions[env_key]
         url = dep["tarball_pattern"].format(ver=ver)
-        ref = "commits/master" if dep["is_commit"] else "tags"
+        ref = f"commits/{dep.get('branch') or 'master'}" if dep["is_commit"] else "tags"
         lines.append(f"# {dep['repo_url']}/{ref}")
         lines.append(f"- name: {dep['fossa_name']}")
         lines.append(f'  url: "{url}"')

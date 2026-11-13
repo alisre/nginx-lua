@@ -175,11 +175,14 @@ def get_stream_lua_commit_for_api_version(required_version):
     )
 
 
-def get_latest_commit(repo_url):
-    """Get the latest commit SHA from a GitHub repository's default branch via API."""
+def get_latest_commit(repo_url, branch=None):
+    """Get the latest commit SHA from a GitHub branch via API."""
     owner_repo = github_owner_repo(repo_url)
     url = f"https://api.github.com/repos/{owner_repo}/commits"
-    resp = requests.get(url, params={"per_page": 1}, timeout=30)
+    params = {"per_page": 1}
+    if branch:
+        params["sha"] = branch
+    resp = requests.get(url, params=params, timeout=30)
     resp.raise_for_status()
 
     commits = resp.json()
@@ -210,7 +213,13 @@ def main():
     # Dependency list (repo, tarball URL pattern, ...) lives in deps_manifest.py,
     # shared with generate-fossa-deps.py so both stay in sync.
     deps = [
-        (dep["key"], dep["repo_url"], dep["is_commit"], dep["tarball_pattern"])
+        (
+            dep["key"],
+            dep["repo_url"],
+            dep["is_commit"],
+            dep.get("branch"),
+            dep["tarball_pattern"],
+        )
         for dep in DEPENDENCIES
     ]
 
@@ -267,7 +276,7 @@ def main():
         file=sys.stderr,
     )
 
-    for name, repo_url, is_commit, tarball_pattern in deps:
+    for name, repo_url, is_commit, branch, tarball_pattern in deps:
         print(f"Fetching version for {name}...", file=sys.stderr)
         if name == "lua_resty_core":
             # NOT get_latest_tag(): that skips RC tags and would emit the
@@ -279,7 +288,7 @@ def main():
         elif name == "openresty_streamlua":
             ver = pinned_stream_lua
         elif is_commit:
-            ver = get_latest_commit(repo_url)
+            ver = get_latest_commit(repo_url, branch)
         else:
             ver = get_latest_tag(repo_url)
 

@@ -146,6 +146,21 @@ SHA256_MISC_NGINX={sha256_misc_nginx}
 VER_ECHO_NGINX={ver_echo_nginx}
 SHA256_ECHO_NGINX={sha256_echo_nginx}
 
+# ngx_waf Current branch
+# https://github.com/alisre/ngx_waf/tree/current
+VER_NGX_WAF={ver_ngx_waf}
+SHA256_NGX_WAF={sha256_ngx_waf}
+
+# cJSON
+# https://github.com/DaveGamble/cJSON/tags
+VER_CJSON={ver_cjson}
+SHA256_CJSON={sha256_cjson}
+
+# uthash
+# https://github.com/troydhanson/uthash/tags
+VER_UTHASH={ver_uthash}
+SHA256_UTHASH={sha256_uthash}
+
 # stream-lua-nginx-module
 # https://github.com/openresty/stream-lua-nginx-module/commits/master
 # lua-resty-core pins stream subsystem support to an EXACT ngx_stream_lua_version

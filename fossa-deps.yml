@@ -114,6 +114,21 @@ remote-dependencies:
   url: "https://github.com/openresty/echo-nginx-module/archive/v0.66.tar.gz"
   version: "0.66"
 
+# https://github.com/alisre/ngx_waf/commits/current
+- name: ngx_waf
+  url: "https://codeload.github.com/alisre/ngx_waf/tar.gz/acbf861c0b270f4bd42b70860fbd0e74d6c8271b"
+  version: "acbf861c0b270f4bd42b70860fbd0e74d6c8271b"
+
+# https://github.com/DaveGamble/cJSON/tags
+- name: cJSON
+  url: "https://github.com/DaveGamble/cJSON/archive/refs/tags/v1.7.15.tar.gz"
+  version: "1.7.15"
+
+# https://github.com/troydhanson/uthash/tags
+- name: uthash
+  url: "https://github.com/troydhanson/uthash/archive/refs/tags/v2.4.0.tar.gz"
+  version: "2.4.0"
+
 # https://github.com/openresty/stream-lua-nginx-module/commits/master
 - name: stream-lua-nginx-module
   url: "https://github.com/openresty/stream-lua-nginx-module/archive/889cb589150a261811dc1b6d0d19e8a252ff3081.tar.gz"
