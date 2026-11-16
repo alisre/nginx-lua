@@ -521,6 +521,7 @@ ARG PKG_DEPS="\
         libmaxminddb-dev \
         libxml2-dev \
         openssl-dev \
+        pcre \
         pcre2-dev \
         unzip \
         wget \

@@ -538,6 +538,7 @@ ARG PKG_DEPS="\
     libstdc++ \
         libxml2-dev \
         openssl-dev \
+        pcre \
         pcre2-dev \
         yajl \
         unzip \
