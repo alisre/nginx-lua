@@ -184,6 +184,15 @@ DEPENDENCIES = [
         tarball_pattern="https://codeload.github.com/alisre/ngx_waf/tar.gz/{ver}",
     ),
     dict(
+        key="modsecurity",
+        fossa_name="ModSecurity",
+        repo_url="https://github.com/SpiderLabs/ModSecurity",
+        is_commit=False,
+        branch=None,
+        pinned_version="3.0.5",
+        tarball_pattern="https://codeload.github.com/SpiderLabs/ModSecurity/tar.gz/refs/tags/v{ver}",
+    ),
+    dict(
         key="cjson",
         fossa_name="cJSON",
         repo_url="https://github.com/DaveGamble/cJSON",

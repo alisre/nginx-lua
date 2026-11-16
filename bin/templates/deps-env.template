@@ -151,6 +151,11 @@ SHA256_ECHO_NGINX={sha256_echo_nginx}
 VER_NGX_WAF={ver_ngx_waf}
 SHA256_NGX_WAF={sha256_ngx_waf}
 
+# ModSecurity headers matching the runtime image
+# https://github.com/SpiderLabs/ModSecurity/tags
+VER_MODSECURITY={ver_modsecurity}
+SHA256_MODSECURITY={sha256_modsecurity}
+
 # cJSON
 # https://github.com/DaveGamble/cJSON/tags
 VER_CJSON={ver_cjson}

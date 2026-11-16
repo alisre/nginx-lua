@@ -218,6 +218,7 @@ def main():
             dep["repo_url"],
             dep["is_commit"],
             dep.get("branch"),
+            dep.get("pinned_version"),
             dep["tarball_pattern"],
         )
         for dep in DEPENDENCIES
@@ -276,7 +277,7 @@ def main():
         file=sys.stderr,
     )
 
-    for name, repo_url, is_commit, branch, tarball_pattern in deps:
+    for name, repo_url, is_commit, branch, pinned_version, tarball_pattern in deps:
         print(f"Fetching version for {name}...", file=sys.stderr)
         if name == "lua_resty_core":
             # NOT get_latest_tag(): that skips RC tags and would emit the
@@ -287,6 +288,8 @@ def main():
             ver = pinned_lua_nginx_module
         elif name == "openresty_streamlua":
             ver = pinned_stream_lua
+        elif pinned_version:
+            ver = pinned_version
         elif is_commit:
             ver = get_latest_commit(repo_url, branch)
         else:
