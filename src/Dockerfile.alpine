@@ -546,6 +546,7 @@ ARG PKG_DEPS="\
         gd \
         geoip \
         libedit \
+        lmdb \
         libxslt \
         perl \
         zstd-libs \
