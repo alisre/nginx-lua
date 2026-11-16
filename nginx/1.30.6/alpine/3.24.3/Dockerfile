@@ -11,10 +11,48 @@ ARG ARCH=
 ARG DISTRO=alpine
 ARG DISTRO_VER=3.24.3
 
+FROM ${ARCH}/$DISTRO:$DISTRO_VER AS modsecurity-build
+ARG VER_MODSECURITY=3.0.17
+RUN set -eux \
+    && apk add --no-cache --virtual .modsecurity-build-deps \
+        autoconf \
+        automake \
+        ca-certificates \
+        coreutils \
+        curl-dev \
+        g++ \
+        gcc \
+        git \
+        libc-dev \
+        libfuzzy2-dev \
+        libmaxminddb-dev \
+        libtool \
+        libxml2-dev \
+        linux-headers \
+        lmdb-dev \
+        make \
+        openssl \
+        openssl-dev \
+        pkgconfig \
+        pcre2-dev \
+        yajl-dev \
+        zlib-dev \
+    && git clone --depth 1 --branch "v${VER_MODSECURITY}" --recursive https://github.com/owasp-modsecurity/ModSecurity.git /tmp/ModSecurity \
+    && cd /tmp/ModSecurity \
+    && ARCH="$(gcc -print-multiarch)" \
+    && sed -ie "s/i386-linux-gnu/${ARCH}/g" build/msc_find_lib.m4 \
+    && ./build.sh \
+    && ./configure --prefix=/usr/local/modsecurity \
+    && make -j"$(nproc)" install \
+    && mkdir -p /usr/local/modsecurity/include \
+    && cp -a headers/. /usr/local/modsecurity/include/ \
+    && strip /usr/local/modsecurity/lib/lib*.so*
+
 #############################
 # Settings Common Variables #
 #############################
 FROM ${ARCH}/$DISTRO:$DISTRO_VER AS base
+COPY --from=modsecurity-build /usr/local/modsecurity /usr/local/modsecurity
 
 ARG ARCH=
 ENV ARCH=$ARCH
@@ -22,6 +60,11 @@ ENV ARCH=$ARCH
 ENV DOCKER_IMAGE=fabiocicerchia/nginx-lua
 ENV DOCKER_IMAGE_OS=${DISTRO}
 ENV DOCKER_IMAGE_TAG=${DISTRO_VER}
+ARG BUILD_NGX_WAF=YES
+ENV BUILD_NGX_WAF=$BUILD_NGX_WAF
+ARG VER_MODSECURITY=3.0.17
+ENV VER_MODSECURITY=$VER_MODSECURITY
+ENV LIB_MODSECURITY=/usr/local/modsecurity
 
 ARG BUILD_DATE
 ENV BUILD_DATE=$BUILD_DATE
@@ -199,6 +242,10 @@ ENV VER_MISC_NGINX=$VER_MISC_NGINX
 ARG VER_ECHO_NGINX=0.66
 ENV VER_ECHO_NGINX=$VER_ECHO_NGINX
 
+# ngx_waf Current branch
+ARG VER_NGX_WAF=acbf861c0b270f4bd42b70860fbd0e74d6c8271b
+ENV VER_NGX_WAF=$VER_NGX_WAF
+
 # stream-lua-nginx-module
 # https://github.com/openresty/stream-lua-nginx-module
 ARG VER_OPENRESTY_STREAMLUA=889cb589150a261811dc1b6d0d19e8a252ff3081
@@ -325,6 +372,7 @@ ARG NGINX_BUILD_CONFIG="\
             --add-module=/stream-lua-nginx-module-${VER_OPENRESTY_STREAMLUA} \
             --add-module=/ngx_brotli \
             --add-module=/zstd-nginx-module \
+            --add-dynamic-module=/ngx_waf-${VER_NGX_WAF} \
 "
 ENV NGINX_BUILD_CONFIG=$NGINX_BUILD_CONFIG
 
@@ -392,6 +440,11 @@ ARG NGINX_BUILD_DEPS="\
         zlib-dev \
 # OPENRESTY PATCHES
         git \
+    coreutils \
+    curl-dev \
+    pkgconfig \
+    libsodium-dev \
+    yajl-dev \
 # HTTP3 EXTRAS (brotli, zstd, quickjs/njs, dynamic modules)
         autoconf \
         automake \
@@ -509,6 +562,8 @@ LABEL maintainer="Fabio Cicerchia <info@fabiocicerchia.it>" \
     versions.nginx-lua-prometheus="${VER_PROMETHEUS}" \
     versions.set-misc-nginx=${VER_MISC_NGINX} \
     versions.echo-nginx=${VER_ECHO_NGINX} \
+    versions.ngx_waf="${VER_NGX_WAF}" \
+    versions.modsecurity="${VER_MODSECURITY}" \
     versions.stream-lua-nginx-module="${VER_OPENRESTY_STREAMLUA}" \
     versions.ngx_brotli="${VER_NGX_BROTLI}" \
     versions.zstd-nginx-module="${VER_ZSTD_NGINX}" \
@@ -516,19 +571,26 @@ LABEL maintainer="Fabio Cicerchia <info@fabiocicerchia.it>" \
 
 # wget is required due to https://github.com/luarocks/luarocks/issues/952
 ARG PKG_DEPS="\
+        ca-certificates \
         curl \
-        libmaxminddb-dev \
-        libxml2-dev \
-        openssl-dev \
-        pcre2-dev \
-        unzip \
-        wget \
-        zlib-dev \
         gd \
         geoip \
         libedit \
+        libcurl \
+        libfuzzy2 \
+        libmaxminddb \
+        libsodium \
+        libstdc++ \
+        libxml2 \
+        lmdb \
         libxslt \
+        openssl \
+        pcre2 \
         perl \
+        unzip \
+        wget \
+        yajl \
+        zlib \
         zstd-libs \
 "
 ENV PKG_DEPS=$PKG_DEPS

@@ -407,6 +407,7 @@ The following are the available build-time options. They can be set using the `-
 | `VER_MISC_NGINX`             | `0.33`                                     | The version of [set-misc-nginx-module](https://github.com/openresty/set-misc-nginx-module) to use. |
 | `VER_ECHO_NGINX`             | `0.65`                                     | The version of [echo-nginx-module](https://github.com/openresty/echo-nginx-module) to use. |
 | `VER_NGX_WAF`                 | Current branch commit                      | The commit of [ngx_waf](https://github.com/alisre/ngx_waf/tree/current) compiled as a dynamic module in Alpine images. |
+| `VER_MODSECURITY`              | `3.0.17`                                   | The version of [ModSecurity](https://github.com/owasp-modsecurity/ModSecurity) built for the Alpine ngx_waf module. |
 | `VER_OPENRESTY_DNS`          | `0.23`                                     | The version of [lua-resty-dns](https://github.com/openresty/lua-resty-dns) to use. |
 | `VER_OPENRESTY_HEADERS`      | `0.39`                                     | The version of [headers-more-nginx-module](https://github.com/openresty/headers-more-nginx-module) to use. |
 | `VER_OPENRESTY_HEALTHCHECK`  | `0.08`                                     | The version of [lua-resty-upstream-healthcheck](https://github.com/openresty/lua-resty-upstream-healthcheck) to use. |

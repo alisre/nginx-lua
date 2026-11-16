@@ -355,7 +355,7 @@ dep-echo-nginx-module:
 # ngx_waf Current branch
 # ##############################################################################
 dep-ngx-waf:
-	$(call secure_download,https://codeload.github.com/SpiderLabs/ModSecurity/tar.gz/refs/tags/v${VER_MODSECURITY},/modsecurity-headers.tar.gz,${SHA256_MODSECURITY})
+	$(call secure_download,https://codeload.github.com/owasp-modsecurity/ModSecurity/tar.gz/refs/tags/v${VER_MODSECURITY},/modsecurity-headers.tar.gz,${SHA256_MODSECURITY})
 	tar -C / -xzf /modsecurity-headers.tar.gz
 	mkdir -p /usr/local/modsecurity/include
 	cp -a /ModSecurity-${VER_MODSECURITY}/headers/. /usr/local/modsecurity/include/

@@ -156,7 +156,11 @@ core:
 	&& $(MAKE) build \
 	&& $(MAKE) modules \
 	&& install -m755 objs/nginx-debug /usr/sbin/nginx-debug \
-	&& $(MAKE) install
+	&& $(MAKE) install \
+	&& if [ "$(BUILD_NGX_WAF)" = "YES" ]; then install -D -m755 objs/ngx_http_waf_module.so /usr/lib/nginx/modules/ngx_http_waf_module.so; fi \
+	&& install -D -m644 objs/src/http/modules/perl/blib/lib/nginx.pm /usr/lib/perl5/vendor_perl/nginx.pm \
+	&& mkdir -p /usr/lib/perl5/vendor_perl/auto/nginx \
+	&& cp -a objs/src/http/modules/perl/blib/arch/auto/nginx/. /usr/lib/perl5/vendor_perl/auto/nginx/
 # Upstream lua-resty-*/openresty test suites hardcode
 # PATH=/usr/local/openresty(-debug)/nginx/sbin:$$PATH in their own Makefiles
 # (matching an official OpenResty install layout) to pick a release or debug
@@ -181,6 +185,9 @@ ifeq ($(EXTENDED_IMAGE), YES)
 		dep-lua-upstream-nginx-module dep-nginx-lua-prometheus dep-stream-lua-nginx-module \
 		dep-lua-openresty-misc dep-lua-resty-limit-traffic dep-lua-resty-upload \
 		dep-lua-resty-lock dep-lua-resty-balancer dep-lua-resty-string dep-echo-nginx-module
+endif
+ifeq ($(BUILD_NGX_WAF), YES)
+deps: dep-ngx-waf
 endif
 
 # NGX Devel Kit
@@ -344,6 +351,24 @@ dep-lua-openresty-misc:
 dep-echo-nginx-module:
 	$(call secure_download,https://github.com/openresty/echo-nginx-module/archive/v${VER_ECHO_NGINX}.tar.gz,/echo-nginx-module.tar.gz,${SHA256_ECHO_NGINX})
 	tar -C / -xvzf /echo-nginx-module.tar.gz
+
+# ngx_waf Current branch
+# ##############################################################################
+dep-ngx-waf:
+	$(call secure_download,https://codeload.github.com/owasp-modsecurity/ModSecurity/tar.gz/refs/tags/v${VER_MODSECURITY},/modsecurity-headers.tar.gz,${SHA256_MODSECURITY})
+	tar -C / -xzf /modsecurity-headers.tar.gz
+	mkdir -p /usr/local/modsecurity/include
+	cp -a /ModSecurity-${VER_MODSECURITY}/headers/. /usr/local/modsecurity/include/
+	$(call secure_download,https://codeload.github.com/alisre/ngx_waf/tar.gz/${VER_NGX_WAF},/ngx-waf.tar.gz,${SHA256_NGX_WAF})
+	tar -C / -xzf /ngx-waf.tar.gz
+	$(call secure_download,https://github.com/DaveGamble/cJSON/archive/refs/tags/v${VER_CJSON}.tar.gz,/cjson.tar.gz,${SHA256_CJSON})
+	mkdir -p /ngx_waf-${VER_NGX_WAF}/lib/cjson
+	tar -C /ngx_waf-${VER_NGX_WAF}/lib/cjson --strip-components=1 -xzf /cjson.tar.gz
+	$(call secure_download,https://github.com/troydhanson/uthash/archive/refs/tags/v${VER_UTHASH}.tar.gz,/uthash.tar.gz,${SHA256_UTHASH})
+	mkdir -p /ngx_waf-${VER_NGX_WAF}/lib/uthash/include
+	mkdir -p /tmp/uthash-${VER_UTHASH}
+	tar -C /tmp/uthash-${VER_UTHASH} --strip-components=1 -xzf /uthash.tar.gz
+	cp /tmp/uthash-${VER_UTHASH}/src/*.h /ngx_waf-${VER_NGX_WAF}/lib/uthash/include/
 
 # LUA Upstream
 # ##############################################################################

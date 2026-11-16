@@ -186,11 +186,11 @@ DEPENDENCIES = [
     dict(
         key="modsecurity",
         fossa_name="ModSecurity",
-        repo_url="https://github.com/SpiderLabs/ModSecurity",
+        repo_url="https://github.com/owasp-modsecurity/ModSecurity",
         is_commit=False,
         branch=None,
-        pinned_version="3.0.5",
-        tarball_pattern="https://codeload.github.com/SpiderLabs/ModSecurity/tar.gz/refs/tags/v{ver}",
+        pinned_version="3.0.17",
+        tarball_pattern="https://codeload.github.com/owasp-modsecurity/ModSecurity/tar.gz/refs/tags/v{ver}",
     ),
     dict(
         key="cjson",
