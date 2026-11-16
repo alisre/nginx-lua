@@ -335,6 +335,7 @@ ARG BUILD_DEPS_BASE="\
         make \
         openssl-dev \
         patch \
+        pcre \
         pcre2-dev \
         perl \
         perl-app-cpanminus \
